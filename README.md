@@ -65,7 +65,7 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 | `e ? ⟨ l₁ x ↦ e₁ \| … ⟩`| Pattern matching |
 | `pack [τ] e` | Existential introduction |
 | `unpack e as ⟨a, x⟩ in e′` | Existential elimination |
-| `fix e` | Native fixed-point combinator |
+| `fix e` | Fixed-point combinator |
 | `return e` | IO monad lift |
 | `e >>= e′` | IO monad bind |
 | `42`, `3.14`, `"hello"` | Integer, double, and string literals |
