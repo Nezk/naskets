@@ -26,7 +26,7 @@ appT glbT v v' = case v of
   VAlias       gnm  args body -> VAlias gnm (args  ++ [v' ]) (appT glbT body v')
 
 rbT :: GTypes -> Lv -> Lv -> ValT -> NfT
-rbT glbT dOrg d = \case
+rbT glbT dOrg d = \case --   v global reference map lookup is fast anyway
   VAlias            gnm args _  -> NfNeu (foldl NfNeuApp (NfNeuGlobal gnm) (map    (rbT  glbT dOrg d)  args))
   VNeu              ne          -> NfNeu                 (rbNe        ne )
   val@(VClosure lnm mk  _    _) -> NfLam  lnm    mk      (rbT glbT dOrg    (d + 1) (appT glbT val (fresh d)))
@@ -48,8 +48,8 @@ rbT glbT dOrg d = \case
 
 -- as: []
 
--- rbT      (μ (λa. Y → a)) ⇒      μ (λ. F0 → B0)
--- rbT  (Y → μ (λb. Y → b)) ⇒ F0 → μ (λ. F0 → B0)
+-- rbT     (μ (λa. Y → a)) ⇒      μ (λ. F0 → B0)
+-- rbT (Y → μ (λb. Y → b)) ⇒ F0 → μ (λ. F0 → B0)
 
 -- Not in as. Adding (μ (λ. F0 → B0), F0 → μ (λ. F0 → B0)) to as.
 
@@ -61,16 +61,16 @@ rbT glbT dOrg d = \case
 
 -- as: [ (μ(λ. F0 → B0), F0 → μ(λ. F0 → B0)) ]
 
--- rbT  (μ (λa. Y → a)) ⇒ μ (λ. F0 → B0)
--- rbT  (μ (λb. Y → b)) ⇒ μ (λ. F0 → B0)
+-- rbT (μ (λa. Y → a)) ⇒ μ (λ. F0 → B0)
+-- rbT (μ (λb. Y → b)) ⇒ μ (λ. F0 → B0)
 
 -- Pair (μ …, μ …) is NOT in as. Adding the pair to as.
 -- Left t is μ. Unroll t to (Y → μ (λa. Y → a)) and recurse.
 
 -- as: [ (μ …, μ …), (μ …, F0 → μ …) ]
 
--- rbT  (Y → μ (λa. Y → a)) ⇒ F0 → μ (λ. F0 → B0)
--- rbT      (μ (λb. Y → b)) ⇒      μ (λ. F0 → B0)
+-- rbT (Y → μ (λa. Y → a)) ⇒ F0 → μ (λ. F0 → B0)
+-- rbT     (μ (λb. Y → b)) ⇒      μ (λ. F0 → B0)
 
 -- Pair (F0 → μ …, μ …) is NOT in as. Adding the pair to as.
 -- Right t' is μ now. Unroll t' to (Y → μ (λb. Y → b)) and recurse with (Y → μ (λa. Y → a)) and (Y → μ (λb. Y → b)).
@@ -80,8 +80,8 @@ rbT glbT dOrg d = \case
 
 -- as: [ (F0 → μ …, μ …), (μ …, μ …), (μ …, F0 → μ …) ]
 
--- rbT  (μ (λa. Y → a)) ⇒ μ (λ. F0 → B0)
--- rbT  (μ (λb. Y → b)) ⇒ μ (λ. F0 → B0)
+-- rbT (μ (λa. Y → a)) ⇒ μ (λ. F0 → B0)
+-- rbT (μ (λb. Y → b)) ⇒ μ (λ. F0 → B0)
 
 -- Pair (μ(λ. F0 → B0), μ(λ. F0 → B0)) IS in as ⇒ t = t'
 
@@ -89,8 +89,8 @@ equivT :: GTypes -> Lv -> ValT -> ValT -> Bool
 equivT glbT dO vO vO' = fst (eq [] dO vO vO') 
   where eq as d vRaw vRaw' = case (vRaw, vRaw') of
           -- Consider:     Phantom a ≔ Int
-          -- Phantom Int = Phantom String ⇒ "Phantom" == "Phantom"                    ⇒ checkArgs
-          --         Int ≠ String         ⇒ unaliasing Phantom and checking its body  ⇒ True
+          -- Phantom Int = Phantom String ⇒ "Phantom" == "Phantom"                   ⇒ checkArgs
+          --         Int ≠ String         ⇒ unaliasing Phantom and checking its body ⇒ True
           (VAlias gnm args _, VAlias gnm' args' _) 
             | gnm == gnm' -> maybe (checkBody as d (unalias vRaw) (unalias vRaw')) (True,)
                                    (checkArgs d as (args,          args'        ))

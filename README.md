@@ -61,8 +61,8 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 | `let x : τ = e in e′` | Let binding; type annotation is optional |
 | `{ l₁ = e₁, … }` | Record construction |
 | `e.l` | Record projection |
-| `⟨ l = e ⟩` | Variant injection |
-| `e ? ⟨ l₁ x ↦ e₁ \| … ⟩`| Pattern matching |
+| `⟨ l = e ⟩` | Variant construction |
+| `e ? ⟨ l₁ x ↦ e₁ \| … ⟩`| Pattern matching on variants |
 | `pack [τ] e` | Existential introduction |
 | `unpack e as ⟨a, x⟩ in e′` | Existential elimination |
 | `fix e` | Fixed-point combinator |
