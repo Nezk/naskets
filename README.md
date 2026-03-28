@@ -2,7 +2,7 @@
 
 A lazy, purely functional programming language based on the paper *System F-omega with Equirecursive Types for Datatype-Generic Programming* by Yufei Cai, Paolo G. Giarrusso, and Klaus Ostermann.
 
-It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the `Eval` module and described there in detail (about restriction of `μ` on `* → *` and so on), and propositional equality `x ~[κ] y`, where `x, y ∷ κ` (so, it's perfectly possible to express GADTs).
+It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the [Eval](https://github.com/Nezk/naskets/blob/main/src/Eval.hs) module and described there in detail (about restriction of `μ` on `* → *` and so on), and propositional equality `x ~[κ] y`, where `x, y ∷ κ` (so, it's perfectly possible to express GADTs).
 
 Because of equirecursive types, cute things such as this are expressible:
 ```
@@ -15,27 +15,29 @@ y = /\a. \f.
 
 The language supports top-level evaluation via the `>>` syntax. It functions similarly to `#eval` in Lean or `Eval cbn in …` in Coq, evaluating pure expressions without executing IO side-effects. 
 
-The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the project root; `make test` runs all `*.nsk` files in `examples`.
-
 Naskets supports Agda/Idris/etc-style typed holes, using the `?hole` syntax. This pauses the typechecker and prints the local context and the expected goal type. You can also use the `?hole{exp}` syntax to check the `exp` against a goal.
 
 Evaluation is call-by-need (lazy). The interpreter includes cycle detection to explicitly catch and report non-productive, simple infinite loops (similar to Haskell's `<<loop>>` exception (or GHC's — I don't know if it's standardised)).
+
+The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the project root, `make test` runs all the examples.
 
 ## Language Reference
 
 ### Kinds
 
+| Syntax | Description |
 | :--- | :--- |
 | `*` | Base kind |
 | `κ → κ′` | Arrow kind |
 
 ### Types
 
+| Syntax | Description |
 | :--- | :--- |
 | `Int`, `Double`, `String` | Base types |
 | `IO τ` | IO monad |
 | `τ → σ` | Function type |
-| `{ l₁ : τ₁, … }` | Record type; `{}` is the unit type |
+| `{ l₁ : τ₁, … }` | Record type; `{}` is the unit type (= empty product) |
 | `⟨ l₁ : τ₁, … ⟩` | Variant type; `⟨⟩` is the empty variant (void) |
 | `∀a ∷ κ. τ` | Universal quantification |
 | `∃a ∷ κ. τ` | Existential quantification |
@@ -44,13 +46,16 @@ Evaluation is call-by-need (lazy). The interpreter includes cycle detection to e
 | `τ σ` | Type application |
 | `τ ~[κ] σ` | Propositional equality at kind `κ` |
 
-*Record and variant labels are sorted canonically (alphabetically) during parsing. Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the exact same type.*
+*Record and variant labels are sorted canonically (alphabetically) during parsing.*
+
+*Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the exact same type.*
 
 ### Terms
 
+| Syntax | Description |
 | :--- | :--- |
-| `λx : τ. e` or `\x. e` | Lambda; type annotation is optional |
-| `Λa ∷ κ. e` or `/\a. e`| Type abstraction; kind annotation is optional |
+| `λx : τ. e` | Lambda; type annotation is optional |
+| `Λa ∷ κ. e` | Type abstraction; kind annotation is optional |
 | `e e′` | Term application |
 | `e [τ]` | Type application |
 | `let x : τ = e in e′` | Let binding; type annotation is optional |
@@ -69,6 +74,7 @@ Evaluation is call-by-need (lazy). The interpreter includes cycle detection to e
 
 ### Built-ins
 
+| Syntax | Type Signature |
 | :--- | :--- |
 | `(+)`, `(-)`, `(*)` | `Int → Int → Int` |
 | `(+.)`, `(-.)`, `(*.)` | `Double → Double → Double` |
