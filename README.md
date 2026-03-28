@@ -46,9 +46,9 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 | `τ σ` | Type application |
 | `τ ~[κ] τ′` | Propositional equality at kind `κ` |
 
-*Record and variant labels are sorted canonically (alphabetically) during parsing.*
+Record and variant labels are sorted canonically (alphabetically) during parsing.
 
-*Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the exact same type.*
+Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the exact same type.
 
 ### Terms
 
