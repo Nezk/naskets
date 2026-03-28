@@ -1,0 +1,25 @@
+module Eq where
+
+coerce : forall a b :: *. a ~[*] b -> a -> b
+coerce = /\a b. \e. 
+  subst [*] [a] [b] [\x :: *. x] e
+
+Exp :: * -> *
+Exp = \a.
+    < EInt  : { e : Int ~[*] a, val : Int },
+      EUnit : { e : {}  ~[*] a, val : {}  } >
+
+iExp : Exp Int
+iExp = < EInt = { e = refl [*] [Int], val = 14 } >
+
+uExp : Exp Int
+uExp = < EUnit = { e = ?impossible, val = {} } >
+
+fExp : forall a :: *. Exp a -> a
+fExp = /\a. \e. e ?
+     < EInt  i -> coerce [Int] [a] i.e i.val
+     | EUnit u -> let c = coerce in ?h
+     >
+
+test : Int -> Int
+test = ?h{\x. x}

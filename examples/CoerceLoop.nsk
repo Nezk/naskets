@@ -1,0 +1,14 @@
+module Main where
+
+coerce : forall a b :: *. a ~[*] b -> a -> b
+coerce = /\a b. \eq. subst [*] [a] [b] [\alpha :: *. alpha] eq
+
+loop : forall a :: *. {} -> a
+loop = /\a. fix (\f. \u. f u) -- f : {} -> a, u : {}
+
+main : IO {}
+main =
+  let e = loop   [String ~[*] Int] {}    in
+  let i = coerce [String]    [Int] e "X" in
+
+  putStr (showInt i)

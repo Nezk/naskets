@@ -1,0 +1,61 @@
+module Main where
+
+List :: * -> *
+List = \a. mu (\lst :: *. < Nil : {}, Cons : { hd : a, tl : lst } >)
+
+nil : forall a :: *. List a
+nil = /\a. < Nil = {} >
+
+cons : forall a :: *. a -> List a -> List a
+cons = /\a. \h t. < Cons = { hd = h, tl = t } >
+
+sum : List Int -> Int
+sum = fix (\rec l. l ? < Nil u -> 0 | Cons r -> r.hd + rec r.tl >)
+
+Counter :: *
+Counter = exists s :: *. { state : s, step : s -> s, get : s -> Int }
+
+myCounter : Counter
+myCounter = pack [Int] { state = 0, step = \x. x + 1, get = \x. x }
+
+myCounter' : Counter
+myCounter' = pack [Double] { state = 0.0, step = \x. x +. 0.1, get = \n. trunc (n *. 10.0) }
+
+-- Something Jupyter Notebook-ish:
+
+>> "Fields are canonically sorted"
+>> myCounter  
+>> myCounter'
+
+>> putStr (showInt (2 + 2 * 2)) >>= \(_ : {}). putStr " is six"
+>> (\x : Int. x + 2 + 2)
+>> let x = (fix (\x : Int. x)) in (+) x
+>> (\x y z : Int. x + y + z) 10 20
+
+main : IO {} -- Empty record (= product) is unit
+main =
+  putStr "Two counters: " >>= \_.
+  
+  unpack myCounter as <s, ops> in -- Int
+  let st0 = ops.state    in
+  let st1 = ops.step st0 in
+  let st2 = ops.step st1 in
+  let st3 = ops.step st2 in
+  
+  putStr (showInt (ops.get st3) ^ " ") >>= \_.
+
+  unpack myCounter' as <s, ops> in -- Double
+  let st0 = ops.state    in
+  let st1 = ops.step st0 in
+  let st2 = ops.step st1 in
+  let st3 = ops.step st2 in
+  
+  putStr (showInt (ops.get st3)) >>= \_.
+  putStr "\n"                    >>= \_.
+
+  let xs    = cons [Int] 13 (cons [Int] 10 (nil [Int])) in
+  let total = sum xs in
+
+  putStr "Sum of list: " >>= \_.
+  putStr (showInt total) >>= \_.
+  putStr "\n"
