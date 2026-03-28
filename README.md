@@ -17,9 +17,9 @@ The language supports top-level evaluation via the `>>` syntax. It functions sim
 
 Naskets supports Agda/Idris/etc-style typed holes, using the `?hole` syntax. This pauses the typechecker and prints the local context and the expected goal type. You can also use the `?hole{exp}` syntax to check the `exp` against a goal.
 
-Evaluation is call-by-need (lazy). The interpreter includes cycle detection to explicitly catch and report non-productive, simple infinite loops (similar to Haskell's `<<loop>>` exception (or GHC's — I don't know if it's standardised)).
+The interpreter includes cycle detection to explicitly catch and report simple non-productive infinite loops (similar to Haskell's `<<loop>>` exception (or GHC's — I don't know if it's standardised)).
 
-The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the project root, `make test` runs all the examples.
+The `Makefile` wraps Cabal: `make` builds and copies the binary to the project root, `make test` runs all the examples.
 
 ## Language Reference
 
