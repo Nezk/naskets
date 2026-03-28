@@ -4,21 +4,21 @@
 
 module Run where
 
-import           Control.Exception  (Exception, throwIO, try)
-import           Control.Monad      ((>=>)    , forM_       )
-import           Data.Bool          (bool                   )
-                 
-import           System.Environment (getArgs                        )
-import           System.IO          (isEOF                          )
-
-import           Data.IORef         (newIORef, readIORef, writeIORef)
-import qualified Data.Map         as Map
-import qualified Data.Text        as T
-import qualified Data.Text.IO     as TIO
+import           Control.Exception  ( Exception , throwIO  , try        )
+import           Control.Monad      ((>=>)      , forM_                 )
+import           Data.Bool          ( bool                              )
+                                                                    
+import           System.Environment ( getArgs                           )
+import           System.IO          ( isEOF                             )
+                                                 
+import           Data.IORef         ( newIORef   , readIORef, writeIORef)
+import qualified Data.Map       as    Map
+import qualified Data.Text      as    T
+import qualified Data.Text.IO   as    TIO
 
 import           Syntax
-import           Pretty             (ppValE, ppConstE        )
-import           Utils              (internalErr, lookupOrErr)
+import           Pretty             ( ppValE     , ppConstE             )
+import           Utils              
 
 --------------------------------------------------------------------------------
 
