@@ -74,7 +74,7 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 
 ### Built-ins
 
-| Syntax | Type Signature |
+| Syntax | Type |
 | :--- | :--- |
 | `(+)`, `(-)`, `(*)` | `Int → Int → Int` |
 | `(+.)`, `(-.)`, `(*.)` | `Double → Double → Double` |
