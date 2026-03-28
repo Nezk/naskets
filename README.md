@@ -36,7 +36,7 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 | :--- | :--- |
 | `Int`, `Double`, `String` | Base types |
 | `IO τ` | IO monad |
-| `τ → σ` | Function type |
+| `τ → τ′` | Function type |
 | `{ l₁ : τ₁, … }` | Record type; `{}` is the unit type (= empty product) |
 | `⟨ l₁ : τ₁, … ⟩` | Variant type; `⟨⟩` is the empty variant (void) |
 | `∀a ∷ κ. τ` | Universal quantification |
@@ -44,7 +44,7 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 | `μ τ` | Equirecursive type (where `τ ∷ * → *`) |
 | `λa ∷ κ. τ` | Type-level lambda; kind annotation is optional |
 | `τ σ` | Type application |
-| `τ ~[κ] σ` | Propositional equality at kind `κ` |
+| `τ ~[κ] τ′` | Propositional equality at kind `κ` |
 
 *Record and variant labels are sorted canonically (alphabetically) during parsing.*
 
@@ -69,7 +69,7 @@ The provided `Makefile` wraps Cabal: `make` builds and copies the binary to the 
 | `return e` | IO monad lift |
 | `e >>= e′` | IO monad bind |
 | `42`, `3.14`, `"hello"` | Integer, double, and string literals |
-| `(e : τ)` | Inline type annotation |
+| `(e : τ)` | Type annotation |
 | `?h` or `?h{e}` | Typed hole (optionally containing a guess expression `e`) |
 
 ### Built-ins
