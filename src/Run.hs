@@ -369,11 +369,11 @@ executePrim glbT = \case
                          (VVariant (Label "None") <$> mkThunkV (VRecord Map.empty))
 
   IReadFile  th     -> forceString glbT th >>= \path ->                                      try (TIO.readFile (T.unpack path))          >>= \case
-                         Left  (_ :: IOError) -> VVariant (Label "None") <$> mkThunkV (VRecord Map.empty)
-                         Right s              -> VVariant (Label "Some") <$> mkThunkV (VString s)
+                         Left  (e :: IOError) -> VVariant (Label "Error") <$> mkThunkV (VString (T.pack (show e)))
+                         Right s              -> VVariant (Label "Ok"   ) <$> mkThunkV (VString s)
   IWriteFile th th' -> forceString glbT th >>= \path -> forceString glbT th' >>= \content -> try (TIO.writeFile (T.unpack path) content) >>= \case
-                         Left  (_ :: IOError) -> VVariant (Label "None") <$> mkThunkV (VRecord Map.empty)
-                         Right ()             -> VVariant (Label "Some") <$> mkThunkV (VRecord Map.empty)
+                         Left  (e :: IOError) -> VVariant (Label "Error") <$> mkThunkV (VString (T.pack (show e)))
+                         Right ()             -> VVariant (Label "Ok"   ) <$> mkThunkV (VRecord Map.empty)
                          
   IArgCount         -> VInt . fromIntegral . length <$> getArgs
   IArgAt     th     -> forceInt glbT th >>= \n -> getArgs >>= \args ->

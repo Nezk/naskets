@@ -90,8 +90,8 @@ Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the ex
 | `showDouble` | `Double → String` |
 | `putStr` | `String → IO {}` |
 | `getLine` | `IO ⟨ None : {}, Some : String ⟩` |
-| `readFile` | `String → IO ⟨ None : {}, Some : String ⟩` |
-| `writeFile` | `String → String → IO ⟨ None : {}, Some : {} ⟩` |
+| `readFile` | `String → IO ⟨ Error : String, Ok : String ⟩` |
+| `writeFile` | `String → String → IO ⟨ Error : String, Ok : {} ⟩` |
 | `argCount` | `IO Int` |
 | `argAt` | `Int → IO ⟨ None : {}, Some : String ⟩` |
 | `refl [κ]` | `∀a ∷ κ. a ~[κ] a` |

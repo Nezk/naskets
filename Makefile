@@ -24,7 +24,7 @@ test: build
 	    kill $$WATCHER 2>/dev/null ;                                                           \
 	    wait $$WATCHER 2>/dev/null ;                                                           \
 	    if [ -s $$TFILE ]; then                                                                \
-	        echo "[TIMEOUT] $$file exceeded $(TIMEOUT_SEC) seconds." ;                         \
+	        echo "[TIMEOUT] $$file execution exceeded $(TIMEOUT_SEC) seconds." ;               \
 	    fi ;                                                                                   \
 	    rm -f $$TFILE ;                                                                        \
 	done

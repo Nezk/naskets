@@ -101,9 +101,9 @@ expectIO      :: ValT -> String -> TC   ValT
 expectRecord  :: ValT -> String -> TC [(Label, ValT)]
 expectVariant :: ValT -> String -> TC [(Label, ValT)]
 
-expectArr     v msg = headT v >>= \case { Just (TArr,    [dom, cod]) -> return (dom, cod)    ; _ -> mismatch v "arrow"       msg }
-expectForall  v msg = headT v >>= \case { Just (TForall   k,  [f  ]) -> return (k,   f  )    ; _ -> mismatch v "forall"      msg }
-expectExists  v msg = headT v >>= \case { Just (TExists   k,  [f  ]) -> return (k,   f  )    ; _ -> mismatch v "existential" msg }
+expectArr     v msg = headT v >>= \case { Just (TArr,    [dom, cod]) -> return (dom, cod    ); _ -> mismatch v "arrow"       msg }
+expectForall  v msg = headT v >>= \case { Just (TForall   k,  [f  ]) -> return (k,   f      ); _ -> mismatch v "forall"      msg }
+expectExists  v msg = headT v >>= \case { Just (TExists   k,  [f  ]) -> return (k,   f      ); _ -> mismatch v "existential" msg }
 expectIO      v msg = headT v >>= \case { Just (TIO,          [a  ]) -> return  a            ; _ -> mismatch v "IO"          msg }
 expectRecord  v msg = headT v >>= \case { Just (TRecordC  ls,  args) -> return (zip  ls args); _ -> mismatch v "record"      msg }
 expectVariant v msg = headT v >>= \case { Just (TVariantC ls,  args) -> return (zip  ls args); _ -> mismatch v "variant"     msg }
@@ -342,8 +342,8 @@ infer = \case
            ESubst k    -> mkSubst k                               
            EPutStr     -> tString                       ~> tIO     tUnit
            EGetLine    ->                                  tIO    (tOption tString)
-           EReadFile   -> tString                       ~> tIO    (tOption tString)
-           EWriteFile  -> tString ~> tString            ~> tIO    (tOption tUnit)
+           EReadFile   -> tString                       ~> tIO    (tResult tString)
+           EWriteFile  -> tString ~> tString            ~> tIO    (tResult tUnit)
            EArgCount   ->                                  tIO     tInt
            EArgAt      -> tInt                          ~> tIO    (tOption tString)
            EAdd        -> tInt    ~> tInt               ~> tInt
@@ -366,8 +366,9 @@ infer = \case
                  tInt      = TConst  TInt
                  tDouble   = TConst  TDouble
                  tUnit     = TConst (TRecordC [])
-                 tBool     = TApp (TApp  (TConst (TVariantC [Label "False", Label "True"])) tUnit) tUnit
-                 tOption   = TApp (TApp  (TConst (TVariantC [Label "None",  Label "Some"])) tUnit)
+                 tBool     = TApp (TApp  (TConst (TVariantC [Label "False", Label "True"])) tUnit  ) tUnit
+                 tOption   = TApp (TApp  (TConst (TVariantC [Label "None",  Label "Some"])) tUnit  )
+                 tResult   = TApp (TApp  (TConst (TVariantC [Label "Error", Label "Ok"  ])) tString) -- Something Either-like
                  tIO       = TApp (TConst TIO)
                  a ~> b    = TApp (TApp  (TConst  TArr)     a)  b
                  tEq  k a  = TApp (TApp  (TConst (TEq   k)) a)
