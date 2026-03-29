@@ -1,0 +1,19 @@
+module Main where
+
+main : IO {}
+main =
+  argCount                       >>= \argc.
+  putStr "Total arguments: "     >>= \_.
+  putStr ((showInt argc) ^ "\n") >>= \_.
+  
+  argAt 0                        >>= \arg0.
+  (arg0 ? 
+    < None u -> putStr  "Argument 0 is missing.\n"
+    | Some s -> putStr ("Argument 0 is: " ^ s ^ "\n")
+    >)                           >>= \_.
+    
+  argAt 1                        >>= \arg1.
+  (arg1 ? 
+    < None u -> putStr  "Argument 1 is missing.\n"
+    | Some s -> putStr ("Argument 1 is: " ^ s ^ "\n")
+    >)

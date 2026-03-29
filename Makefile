@@ -16,7 +16,7 @@ test: build
 	    echo "" ;                                                                              \
 	    echo "**** $$file ****\n" ;                                                            \
 	    TFILE=$$(mktemp) ;                                                                     \
-	    ./$(EXEC) $$file &                                                                     \
+	    ./$(EXEC) $$file hello world &                                                         \
 	    PID=$$! ;                                                                              \
 	    ( sleep $(TIMEOUT_SEC); if kill $$PID 2>/dev/null; then echo timeout > $$TFILE; fi ) & \
 	    WATCHER=$$! ;                                                                          \

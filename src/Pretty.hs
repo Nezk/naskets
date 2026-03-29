@@ -389,8 +389,7 @@ ppErased p = \case
   where pp        = ppErased
         parens pr = parensIf (p > pr)
 
-
-
+-- TODO: these function don't belong here I think
 peekThunk :: (Thunk -> IO ValE) -> Depth -> Thunk -> IO String
 peekThunk forceM d (Thunk ref)
   | d <= 0    = return "…"
