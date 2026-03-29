@@ -12,7 +12,8 @@ executable naskets
     ghc-options:   -Wall
     main-is:        Main.hs
                         
-    other-modules:  Eval       ,
+    other-modules:  Equiv      ,
+                    Eval       ,
                     Parser     ,
                     Pretty     ,
                     Run        ,
@@ -27,5 +28,3 @@ executable naskets
                     filepath          ,
                     directory         ,
                     text
-                    
-

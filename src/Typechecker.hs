@@ -19,6 +19,7 @@ import qualified Data.Map          as   Map
 
 import           Syntax
 import           Eval
+import           Equiv
 import           Pretty
 import           Utils
 

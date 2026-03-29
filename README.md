@@ -2,7 +2,7 @@
 
 A lazy, purely functional programming language based on the paper *[System F-omega with Equirecursive Types for Datatype-Generic Programming](https://ps.informatik.uni-tuebingen.de/research/functors/equirecursion-fomega-popl16.pdf)* by Yufei Cai, Paolo G. Giarrusso, and Klaus Ostermann.
 
-It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the [Eval](https://github.com/Nezk/naskets/blob/main/src/Eval.hs) module and described there in detail (about restriction of `μ` on `* → *` and so on), and propositional equality `x ~[κ] y`, where `x, y ∷ κ` (so, it's perfectly possible to express GADTs).
+It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the [Equiv](https://github.com/Nezk/naskets/blob/main/src/Equiv.hs) module and described there in detail (about restriction of `μ` on `* → *` and so on), and propositional equality `x ~[κ] y`, where `x, y ∷ κ` (so, it's perfectly possible to express GADTs).
 
 Because of equirecursive types, cute things such as this are expressible:
 ```

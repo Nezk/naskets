@@ -19,7 +19,8 @@ import qualified Data.Map         as Map
 import           Text.Parsec        (parse                                     )
 
 import           Syntax             
-import           Eval               (equivT       , evalT                      )
+import           Eval               (evalT                                     )
+import           Equiv              (equivT                                    )
 import           Run                (buildGlobals , runProgram   , runExcs     )
 import           Typechecker        (checkProgram , Ctx(..)                    )
 import           Parser             (parseModule                               )
