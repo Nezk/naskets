@@ -1,6 +1,8 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE StrictData          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE PatternGuards       #-}
 
 module Run where
 
@@ -17,7 +19,7 @@ import qualified Data.Text      as    T
 import qualified Data.Text.IO   as    TIO
 
 import           Syntax
-import           Pretty             ( ppValE     , ppConstE             )
+import           Pretty             ( ppView     , ppConstE             )
 import           Utils              
 
 --------------------------------------------------------------------------------
@@ -377,9 +379,44 @@ executePrim glbT = \case
                          
   IArgCount         -> VInt . fromIntegral . length <$> getArgs
   IArgAt     th     -> forceInt glbT th >>= \n -> getArgs >>= \args ->
-                         if n >= 0 && n < fromIntegral (length args)
+                         if n >= 0 && n < fromIntegral (length args) 
                            then VVariant (Label "Some") <$> mkThunkV (VString (T.pack (args !! fromIntegral n)))
                            else VVariant (Label "None") <$> mkThunkV (VRecord  Map.empty)
+
+--------------------------------------------------------------------------------
+
+takeView :: (Thunk -> IO ValE) -> Depth -> ValE -> IO View
+takeView forceM d = \case
+  _ | d <= 0                 -> return  VwOmitted
+  VInt      n                -> return (VwInt    n)
+  VDouble   x                -> return (VwDouble x)
+  VString   s                -> return (VwString s)
+  
+  VClosureE e   env          -> VwClosure e   <$> mapM (viewTh d) env
+  VPartial  c   as           -> VwPartial c   <$> mapM (viewTh d) as
+  
+  VRecord   flds             -> VwRecord      <$> mapM (\(lbl, th) -> (lbl,) <$> viewF d th) (Map.toList flds)
+  VVariant  lbl th           -> VwVariant lbl <$> viewF d th
+     
+  VIOAct    io               -> case io of
+      IOReturn      th       -> VwIOReturn    <$> viewF d th
+      IOBind        thL thK  -> VwIOBind      <$> viewF d thL <*> viewF d thK
+      IOStandalone  prim     -> case prim of
+         IPutStr    th       -> VwIPutStr     <$> viewF d th
+         IGetLine            -> return VwIGetLine
+         IReadFile  th       -> VwIReadFile   <$> viewF d th
+         IWriteFile th  thK  -> VwIWriteFile  <$> viewF d th  <*> viewF d thK
+         IArgCount           -> return VwIArgCount
+         IArgAt     th       -> VwIArgAt      <$> viewF d th
+  where viewF  depth = forceM >=> takeView forceM (depth - 1)
+        viewTh depth (Thunk ref)
+           | depth <= 0 = return VwOmitted
+           | otherwise  = readIORef ref >>= \case
+               Evaluated   v            -> takeView forceM depth v
+               Evaluating               -> return VwEvaluating
+               Unevaluated e env
+                 | XVar (Ix i) <- e, i >= 0 && i < length env -> viewTh (depth - 1) (env !! i)
+                 | otherwise                                  -> return $ VwUneval e
 
 --------------------------------------------------------------------------------
 
@@ -400,5 +437,5 @@ runProgram glbT mainNm =
         (Map.lookup mainNm glbT)
 
 runExcs :: GErased -> ExcDecls -> IO ()
-runExcs glbT excDecls =                         -- execution is forced by ppValE
-  forM_ excDecls $ \e -> mkThunk (erase e) [] >>= force glbT >>= ppValE (force glbT) 10 >>= putStrLn . (">> " ++)
+runExcs glbT excDecls =                         
+  forM_ excDecls $ \e -> mkThunk (erase e) [] >>= force glbT >>= takeView (force glbT) 30 >>= putStrLn . (">> " ++) . ppView

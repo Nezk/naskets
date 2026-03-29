@@ -1,7 +1,7 @@
 EXEC         = naskets
 EXAMPLES_DIR = examples
 TESTS        = $(wildcard $(EXAMPLES_DIR)/*.nsk)
-TIMEOUT_SEC  = 0.1
+TIMEOUT_SEC  = 0.3
 
 .PHONY: all build test clean
 

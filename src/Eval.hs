@@ -164,12 +164,14 @@ equivT glbT dO vO vO' = fst (eq [] dO vO vO')
 -- (λα. λβ. α β) Loop Int
 
 -- The variable α is replaced with Loop
--- (λβ. Loop β) Int
+--  (λβ. Loop β) Int
 -- ⇒ Loop Int
 
 -- In this type system, µ is restricted to the kind * -> *.
 -- Therefore, as long as the type is contractive, repeated expansion of appT glbT f (VMu f) is guaranteed to terminate after a finite 
 -- number of reductions, eventually revealing some constructor (like a Record, Variant, or Arrow).
+
+-- TODO: write a comment that isNonContr for unrestricted μ is basically a Turing oracle (?) (maybe there is no need in such detailed explanations for obvious things though)
 
 isNonContr :: GTypes -> Lv -> ValT -> Bool
 isNonContr glbT dO = isNC dO

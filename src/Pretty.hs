@@ -7,7 +7,6 @@ import           Data.Bool     ( bool       )
 import           Data.List     ( intercalate)
 import qualified Data.Map   as   Map
 import qualified Data.Text  as   T
-import           Data.IORef    ( readIORef  )
 
 import           Syntax
 import           Utils  
@@ -357,8 +356,6 @@ ppExp tNms eNms p = \case
 
 --------------------------------------------------------------------------------
 
-type Depth = Int
-
 ppErased :: Prec -> Erased -> String
 ppErased p = \case
   XVar     i                      -> "#" ++ show i
@@ -389,63 +386,30 @@ ppErased p = \case
   where pp        = ppErased
         parens pr = parensIf (p > pr)
 
--- TODO: these function don't belong here I think
-peekThunk :: (Thunk -> IO ValE) -> Depth -> Thunk -> IO String
-peekThunk forceM d (Thunk ref)
-  | d <= 0    = return "…"
-  | otherwise = readIORef ref >>= \case
-      Evaluated   v                    -> ppValE forceM (d - 1) v
-      Evaluating                       -> return "<~ … >"
-      Unevaluated (XVar i) env
-        | unIx i >= 0
-        , unIx i < length env          -> peekThunk forceM (d - 1) (env !! unIx i)
-      Unevaluated e _                  -> return $ "<~ " ++ ppErased 0 e ++ ">"
+--------------------------------------------------------------------------------
 
-ppValE :: (Thunk -> IO ValE) -> Depth -> ValE -> IO String
-ppValE forceM d = \case
-  _                 | d <= 0 -> return "…"
-  VInt      n                -> return (show n)
-  VDouble   x                -> return (show x)
-  VString   s                -> return (show (T.unpack s))
+ppView :: View -> String
+ppView = \case
+  VwOmitted             -> "…"
+  VwEvaluating          -> "<~ … >"
+  VwUneval      e       -> "<~ " ++ ppErased 0 e ++ ">"
   
-  VClosureE e   env          -> do
-      envStrs <- mapM (peekThunk forceM d) env
-      return $ "<λ. " ++ ppErased 0 e ++ bool (" | [" ++ intercalate ", " envStrs ++ "]") "" (null env) ++ ">"
-
-  VPartial  c   as           -> do
-      argsStrs <- mapM (peekThunk forceM d) as
-      return $ "<" ++ unwords (ppConstE c : argsStrs) ++ ">"
-
-  VRecord   flds             -> wrap "{" "}" . intercalate ", "        <$> mapM fmtFld (Map.toList flds)
-  VVariant  lbl th           -> wrap ("⟨" ++ unLabel lbl ++ " = ") "⟩" <$> (forceM th >>= rec)
+  VwInt         n       -> show  n
+  VwDouble      x       -> show  x
+  VwString      s       -> show (T.unpack s)
+  
+  VwClosure     e env   -> "<λ. " ++ ppErased 0 e ++ bool (" | [" ++ intercalate ", " (map ppView env) ++ "]") "" (null env) ++ ">"
+  VwPartial     c as    -> "<"    ++ unwords (ppConstE c : map ppView as) ++ ">"
+                                 
+  VwRecord      flds    -> "{"    ++ intercalate ", " (map (\(lbl, sn) -> unLabel lbl ++ " = " ++ ppView sn) flds) ++ "}"
+  VwVariant     lbl sn  -> "⟨"    ++ unLabel lbl ++ " = " ++ ppView sn ++ "⟩"
      
-  VIOAct    io               -> ppIOAct forceM (d - 1) io
-  where rec              = ppValE forceM (d - 1)
-        wrap l r s       = l ++ s ++ r
-        fmtFld (lbl, th) = ((unLabel lbl ++ " = ") ++) <$> (forceM th >>= rec)
-
-ppIOAct :: (Thunk -> IO ValE) -> Depth -> IOActVal -> IO String
-ppIOAct forceM d = \case
-  _                     | d <= 0 -> return "…"
-  IOReturn      th               -> ("return " ++) <$> (forceM th >>= rec)
-  IOStandalone  prim             -> ppIOPrim forceM d prim
-  IOBind        thL thK          -> do
-     ps <- forceM thL >>= \case
-             VIOAct act -> ppIOAct forceM (d - 1) act
-             _          -> internalErr "ppIOAct: invalid IO act"
-     ck <- forceM thK >>= rec
-     return $ ps ++ " >>= " ++ ck
-  where rec = ppValE forceM (d - 1)
-
-ppIOPrim :: (Thunk -> IO ValE) -> Depth -> IOPrim -> IO String
-ppIOPrim forceM d = \case
-  IPutStr    th      -> ("putStr "   ++) <$> (forceM th >>= rec)
-  IGetLine           -> return "getLine"
-  IReadFile  th      -> ("readFile " ++) <$> (forceM th >>= rec)
-  IWriteFile th  thK -> do
-     p  <- forceM th  >>= rec
-     p' <- forceM thK >>= rec
-     return $ "writeFile " ++ p ++ " " ++ p'
-  IArgCount          -> return "argCount"
-  IArgAt     th      -> ("argAt " ++)    <$> (forceM th >>= rec)
-  where rec = ppValE forceM (d - 1)
+  VwIOReturn    sn      -> "return "             ++ ppView sn
+  VwIOBind      snL snK -> ppView snL ++ " >>= " ++ ppView snK
+  
+  VwIPutStr     sn      -> "putStr "    ++ ppView sn
+  VwIGetLine            -> "getLine"
+  VwIReadFile   sn      -> "readFile "  ++ ppView sn
+  VwIWriteFile  sn snK  -> "writeFile " ++ ppView sn ++ " " ++ ppView snK
+  VwIArgCount           -> "argCount"
+  VwIArgAt      sn      -> "argAt "     ++ ppView sn

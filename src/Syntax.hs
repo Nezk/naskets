@@ -220,6 +220,35 @@ data IOPrim
 
 --------------------------------------------------------------------------------
 
+type Depth = Int
+
+data View
+  = VwRecord     [(Label,    View)]
+  | VwVariant      Label     View
+                           
+  | VwClosure      Erased   [View]
+  
+  | VwInt          Integer
+  | VwDouble       Double
+  | VwString       Text
+                  
+  | VwPartial      ConstE   [View]
+                  
+  | VwIOReturn     View
+  | VwIOBind       View      View
+  | VwIPutStr      View
+  | VwIGetLine     
+  | VwIReadFile    View
+  | VwIWriteFile   View      View
+  | VwIArgCount    
+  | VwIArgAt       View
+                  
+  | VwOmitted      
+  | VwEvaluating   
+  | VwUneval       Erased
+
+--------------------------------------------------------------------------------
+
 data Decl
   = DeclType GName Kind Type
   | DeclFun  GName Type Exp 
