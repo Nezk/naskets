@@ -2,7 +2,7 @@
 
 A lazy, purely functional programming language based on the paper *[System F-omega with Equirecursive Types for Datatype-Generic Programming](https://ps.informatik.uni-tuebingen.de/research/functors/equirecursion-fomega-popl16.pdf)* by Yufei Cai, Paolo G. Giarrusso, and Klaus Ostermann.
 
-It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the [Equiv](https://github.com/Nezk/naskets/blob/main/src/Equiv.hs) module and described there in detail (about restriction of `μ` on `* → *` and so on), and propositional equality `x ~[κ] y`, where `x, y ∷ κ` (so, it's perfectly possible to express GADTs).
+It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the [Equiv](https://github.com/Nezk/naskets/blob/main/src/Equiv.hs) module and described there in detail (about restriction of `μ` on `* → *` and so on). 
 
 Because of equirecursive types, cute things such as this are expressible:
 ```
@@ -44,7 +44,6 @@ The `Makefile` wraps Cabal: `make` builds and copies the binary to the project r
 | `μ τ` | Equirecursive type (where `τ ∷ * → *`) |
 | `λa ∷ κ. τ` | Type-level lambda; kind annotation is optional |
 | `τ σ` | Type application |
-| `τ ~[κ] τ′` | Propositional equality at kind `κ` |
 
 Record and variant labels are sorted canonically (alphabetically) during parsing.
 
@@ -94,7 +93,5 @@ Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the ex
 | `writeFile` | `String → String → IO ⟨ Error : String, Ok : {} ⟩` |
 | `argCount` | `IO Int` |
 | `argAt` | `Int → IO ⟨ None : {}, Some : String ⟩` |
-| `refl [κ]` | `∀a ∷ κ. a ~[κ] a` |
-| `subst [κ]` | `∀a b ∷ κ. ∀p ∷ κ → *. a ~[κ] b → p a → p b` |
 
 [^1]: This is a genuine implementation of System Fω, unlike the popular educational-ish implementation on GitHub (<https://github.com/sdiehl/typechecker-zoo/>). That repository claims to implement System Fω and even mentions type-level lambdas in its notes' grammar of System Fω, only to completely omit them in the actual code. Without type-level computation, a system is not System Fω. The repository notes excuse this by stating, *"our implementation focuses on the essential features needed for practical programming language design,"* OK, fine, but don’t call it a System Fω then. There also more funny pearls, it claims: *Core types [of this implementation] include all the expressive power of System Fω: <…> Type Abstraction: `TAbs` for creating type-level functions*, i. e., a `Λ` which is not a type-level lambda. `TAbs` appears in the System F implementation (`Expr::TAbs(String, Box<Expr>)`), described there as *"Type Abstraction (Λα.e): This creates a polymorphic function."*, but the System Fω implementation uses `CoreTerm::TypeLambda` with same semantics, but different (misleading) name. Furthermore, the implementation explicitly states it is based on the paper *A Mechanical Formalization of Higher-Ranked Polymorphic Type Inference*. A type system with higher-rank polymorphism **only** is not System Fω. One might generously assume the `-` in their `System F-ω` refers to System Fω⁻ (a restricted subset, that's how sometimes Haskell's typesystem is described), but their notes plainly state `System Fω`. Why one would wish to mislead people is beyond me… Apologies for the grumbling.

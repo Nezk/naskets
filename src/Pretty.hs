@@ -20,12 +20,11 @@ data Assoc
   | RightAssoc
   | NoneAssoc
 
-precApp, precEq, precArr, precTApp, precAppExp, precBind :: Prec
+precApp, precArr, precTApp, precAppExp, precBind :: Prec
 
 precTApp   = 11
 precApp    = 10
 precAppExp = 10
-precEq     = 5
 precArr    = 4
 precBind   = 1
 
@@ -178,7 +177,6 @@ ppConstT = \case
   
   TForall   k  -> "∀["  ++ ppKind 0 k ++ "]"
   TExists   k  -> "∃["  ++ ppKind 0 k ++ "]"
-  TEq       k  -> "(~[" ++ ppKind 0 k ++ "])"
   
   TRecordC  ls -> "{" ++ joinLbls ls ++ "}"
   TVariantC ls -> "⟨" ++ joinLbls ls ++ "⟩"
@@ -186,8 +184,7 @@ ppConstT = \case
 
 binOpInfoT :: ConstT -> Maybe (String, Prec, Assoc)
 binOpInfoT = \case
-  TArr  -> Just ("→",                       precArr, RightAssoc)
-  TEq k -> Just ("~[" ++ ppKind 0 k ++ "]", precEq,  NoneAssoc )
+  TArr  -> Just ("→", precArr, RightAssoc)
   _     -> Nothing
 
 isBinOp      :: Type   -> Maybe (String, Prec, Assoc)
@@ -264,9 +261,6 @@ ppNeuNfT tNms p nf = case collectArgsNeuNf nf of
 
 ppConstE :: ConstE -> String
 ppConstE = \case
-  ERefl      k -> "refl ["  ++ ppKind 0 k ++ "]"
-  ESubst     k -> "subst [" ++ ppKind 0 k ++ "]"
-  
   EPutStr      -> "putStr"
   EGetLine     -> "getLine"
   EReadFile    -> "readFile"

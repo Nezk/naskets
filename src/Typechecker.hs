@@ -71,6 +71,7 @@ withBindT lnm k = local $ \ctx ->
         ctxTNms  = lnm     : ctx.ctxTNms,
         ctxTLv   = l + 1 }
 
+-- TOOD: rename these two
 lookupIdx    :: (Ctx ->           [a]) -> Ix    -> String -> TC a
 lookupGlobal :: (Ctx -> Map GName  a ) -> GName -> String -> TC a
 
@@ -180,8 +181,6 @@ inferK = \case
            
            TForall k -> KArr (KArr k KStar) KStar
            TExists k -> KArr (KArr k KStar) KStar
-           
-           TEq k -> KArr k (KArr k KStar)
            
            TIO -> KArr KStar KStar
 
@@ -339,8 +338,6 @@ infer = \case
         errUnpack                = "Cannot infer the type for unpack."
         errVariant               = "Cannot infer the type for variant injection."
         constT = \case
-           ERefl  k    -> mkRefl  k
-           ESubst k    -> mkSubst k                               
            EPutStr     -> tString                       ~> tIO     tUnit
            EGetLine    ->                                  tIO    (tOption tString)
            EReadFile   -> tString                       ~> tIO    (tResult tString)
@@ -372,23 +369,7 @@ infer = \case
                  tResult   = TApp (TApp  (TConst (TVariantC [Label "Error", Label "Ok"  ])) tString) -- Something Either-like
                  tIO       = TApp (TConst TIO)
                  a ~> b    = TApp (TApp  (TConst  TArr)     a)  b
-                 tEq  k a  = TApp (TApp  (TConst (TEq   k)) a)
                  infixr 4 ~>
-                 mkRefl  k = TApp (TConst (TForall k)) (TLam (LName "a") (Just k) (tEq k (TVar 0) (TVar 0)))                 
-                 mkSubst k = let a    = TVar 2 
-                                 b    = TVar 1
-                                 p    = TVar 0
-                                 eq   = tEq  k a b
-                                 pa   = TApp p a
-                                 pb   = TApp p b
-                                 arr  = eq ~> pa ~> pb
-                                 lamP = TLam  (LName "p") (Just    (KArr k KStar )) arr
-                                 forP = TApp  (TConst     (TForall (KArr k KStar))) lamP
-                                 lamB = TLam  (LName "b") (Just          k        ) forP
-                                 forB = TApp  (TConst     (TForall       k       )) lamB
-                                 lamA = TLam  (LName "a") (Just          k        ) forB
-                             in  TApp (TConst (TForall                   k       )) lamA
-                             --  ∀a ∷ k. ∀b ∷ k. ∀p ∷ k → *. a ~[k] b → p a → p b
 
 check :: Exp -> ValT -> TC ()
 check e vtyExp = case e of

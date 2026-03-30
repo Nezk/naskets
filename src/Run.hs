@@ -257,9 +257,7 @@ apply glbT v thArg = case v of
                          else return $ VPartial c ths'
   _                   -> internalErr "apply: Expected function"
   where arity = \case
-          { ERefl   _   -> internalErr "arity: refl does not take term arguments";
-            ESubst  _   -> 2;
-            EPutStr     -> 1; EReadFile   -> 1; EWriteFile -> 2;
+          { EPutStr     -> 1; EReadFile   -> 1; EWriteFile -> 2;
             EArgAt      -> 1;
             EAdd        -> 2; ESub        -> 2; EMul       -> 2;
             EAddD       -> 2; ESubD       -> 2; EMulD      -> 2; EDivD -> 2; ETrunc -> 1;
@@ -269,9 +267,7 @@ apply glbT v thArg = case v of
             _           -> internalErr "arity: unreachable primitive" }
 
 applyConst :: GErased -> ConstE -> Args -> IO ValE
-applyConst glbT c args = case (c, args) of -- The only way to construct ~ besides refl is inf. loop
-  (ESubst _,    [prf, th     ]) -> force glbT prf >>= \case { VPartial (ERefl _) [] -> force glbT th; _ -> internalErr "applyConst: subst proof was not refl" }
-                                  
+applyConst glbT c args = case (c, args) of
   (EAdd,        [e,   e'     ]) -> binInt    (+) e e'
   (ESub,        [e,   e'     ]) -> binInt    (-) e e'
   (EMul,        [e,   e'     ]) -> binInt    (*) e e'

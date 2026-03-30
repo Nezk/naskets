@@ -58,7 +58,6 @@ data ConstT
   | TIO                         -- IO  : * → *
 
   | TForall Kind | TExists Kind -- t[κ]   : (κ → *) → *
-  | TEq     Kind                -- _~[k]_ : κ → κ → *
 
   | TRecordC  Labels            -- { l1 : _, …, l_n : _ }
   | TVariantC Labels            -- ⟨ l1 : _, …, l_n : _ ⟩
@@ -136,10 +135,7 @@ data Exp
   | ELoc  Pos   Exp
 
 data ConstE
-  = ERefl  Kind
-  | ESubst Kind
-  
-  | EPutStr   | EGetLine  | EReadFile | EWriteFile 
+  = EPutStr   | EGetLine  | EReadFile | EWriteFile 
   | EArgCount | EArgAt
   
   | EAdd  | ESub  | EMul          -- +  -  *

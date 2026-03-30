@@ -41,7 +41,6 @@ nasketsDef = emptyDef
        "argCount" , "argAt"     ,
        "substring", "length"    , "trunc"   ,
        "showInt"  , "showDouble",
-       "refl"     , "subst"     ,
        "mu"       ,
        "forall"   , "exists"   ],
     Token.reservedOpNames =
@@ -50,7 +49,6 @@ nasketsDef = emptyDef
        "->" , "→"  ,
        "Λ"  , "/\\", "\\", "λ",
        "."  ,
-       "~"  ,
        "?"  ,
        "|"  , "↦"  ,
        ">>=", ">>" ,
@@ -113,8 +111,7 @@ parseType tNms = withLoc TLoc $ buildExpressionParser tTable (tyApp tNms)
 
 tTable :: [[Operator String () Identity Type]]
 tTable =
-  [[Infix (try (getPosition <* reservedOp "~") >>= \sp -> brackets parseKind <&> \k l r -> TLoc (toPos sp) (TApp (TApp (TConst (TEq k)) l) r)) AssocNone],
-   [infixR (reservedOp "->") (\l r -> TApp (TApp (TConst TArr) l) r),
+  [[infixR (reservedOp "->") (\l r -> TApp (TApp (TConst TArr) l) r),
     infixR (reservedOp "→")  (\l r -> TApp (TApp (TConst TArr) l) r)]]
   where infixR p f = Infix (try (getPosition <* p) <&> \sp l r -> TLoc (toPos sp) (f l r)) AssocRight
 
@@ -165,7 +162,6 @@ tyExp tNms = withLoc TLoc $
       try (parseQuantifierSugar tNms)
   <|> try (parens (reservedOp "->") >> return (TConst TArr))
   <|> try (parens (reservedOp "→" ) >> return (TConst TArr))
-  <|> try (parens (reservedOp "~" ) >> brackets parseKind <&> TConst . TEq)
   <|> parseRecordType        tNms
   <|> parseVariantType       tNms
   <|> try (parens (parseType tNms))
@@ -312,8 +308,6 @@ expAtom tNms eNms = withLoc ELoc $
   <|> (reserved "showInt"    >> return (EConst EShowInt   ))
   <|> (reserved "showDouble" >> return (EConst EShowDouble))
   <|> (reserved "trunc"      >> return (EConst ETrunc     ))
-  <|> (reserved "refl"       >> EConst . ERefl  <$> brackets parseKind)
-  <|> (reserved "subst"      >> EConst . ESubst <$> brackets parseKind)
   <|> try (Token.naturalOrFloat lexer      <&> either EInt EDouble)
   <|> try (EString . T.pack                <$> stringLiteral)
   <|> try (reservedOp "?" >> EHole . HName <$> identifier <*> optionMaybe (braces (parseExp tNms eNms)))

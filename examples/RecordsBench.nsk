@@ -106,5 +106,11 @@ B24 = {a : B23, b : B23}
 B25 :: *
 B25 = {a : B24, b : B24}
 
-test : A25 ~[*] B25
-test = refl [*] [A25]
+Eq :: * -> * -> *
+Eq = \a b. forall p :: * -> *. p a -> p b
+
+refl : forall a :: *. Eq a a
+refl = /\a. /\p. \x : p a. x
+
+test : Eq A25 B25
+test = refl [A25]
