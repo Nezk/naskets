@@ -49,7 +49,8 @@ data Type
   | TGlobal GName                         
   | TLam          LName (Maybe Kind) Type      -- λα ∷ κ. τ / λα. τ
   | TApp                             Type Type -- τ₁ τ₂
-  | TMu                              Type      -- μ τ
+  | TMu                              Type      -- μ  τ
+  | TMu'                             Type      -- μ′ τ
   | TLoc          Pos                Type
 
 data ConstT
@@ -67,13 +68,14 @@ data ConstT
 
 data ValT
   = VNeu                        NeuT
-  | VMu                         ValT       
+  | VMu                         ValT      
   | VClosure LName (Maybe Kind) Type EnvT  
   | VAlias   GName [ValT]       ValT      -- The ValT argument is lazy, I HOPE
 
 data NeuT
   = NeuVar    Lv      
   | NeuConst     ConstT
+  | NeuMu'       ValT        -- neutral until manually unrolled
   | NeuApp       NeuT   ValT
 
 --------------------------------------------------------------------------------
@@ -94,6 +96,7 @@ data NeuNfT
   | NfNeuFVar   Lv             -- Locally free with respect to the sub-term
   | NfNeuApp          NeuNfT  NfT 
   | NfNeuMu                   NfT 
+  | NfNeuMu'                  NfT
   deriving Eq
 
 --------------------------------------------------------------------------------
@@ -124,6 +127,8 @@ data Exp
 
   | EPack   Type Exp                 -- pack [σ] t
   | EUnpack      Exp LName LName Exp -- unpack t as ⟨α, x⟩ in s
+  | ERoll   Type Exp                 -- roll [σ] t
+  | EUnroll      Exp                 -- unroll t
 
   | EFix Exp                         -- fix t
 

@@ -4,7 +4,7 @@ A lazy, purely functional programming language based on the paper *[System F-ome
 
 It's System Fω[^1], with the addition of `μ` and the definitional equality `μ F ≡ F (μ F)`, which is implemented in the [Equiv](https://github.com/Nezk/naskets/blob/main/src/Equiv.hs) module and described there in detail (about restriction of `μ` on `* → *` and so on). 
 
-Because of equirecursive types, cute things such as this are expressible:
+Because of equirecursive types, is it possible to express self application without `roll`/`unroll`:
 ```
 y : forall a :: *. (a -> a) -> a
 y = /\a. \f.
@@ -12,6 +12,8 @@ y = /\a. \f.
   w w
 ```
 (one shouldn't use it instead of built-in `fix` though due to efficiency reasons)
+
+In addition, Naskets includes unrestricted isorecursive types using `μ′`. I don't have any formal proof to show that nothing will go wrong, but at first glance it shouldn't cause any problems. 
 
 The language supports top-level evaluation via the `>>` syntax. It functions similarly to `#eval` in Lean or `Eval cbn in …` in Coq, evaluating pure expressions without executing IO side-effects. 
 
@@ -42,6 +44,7 @@ The `Makefile` wraps Cabal: `make` builds and copies the binary to the project r
 | `∀a ∷ κ. τ` | Universal quantification |
 | `∃a ∷ κ. τ` | Existential quantification |
 | `μ τ` | Equirecursive type (where `τ ∷ * → *`) |
+| `μ′ τ` | Isorecursive type (where `τ ∷ κ → κ`) |
 | `λa ∷ κ. τ` | Type-level lambda; kind annotation is optional |
 | `τ σ` | Type application |
 
@@ -64,6 +67,8 @@ Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the ex
 | `e ? ⟨ l₁ x ↦ e₁ \| … ⟩`| Pattern matching on variants |
 | `pack [τ] e` | Existential introduction |
 | `unpack e as ⟨a, x⟩ in e′` | Existential elimination |
+| `roll [τ] e` | Isorecursive introduction |
+| `unroll e` | Isorecursive elimination |
 | `fix e` | Fixed-point combinator |
 | `return e` | IO monad lift |
 | `e >>= e′` | IO monad bind |

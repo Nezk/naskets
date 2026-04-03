@@ -88,13 +88,14 @@ equivT glbT dO vO vO' = fst (eq [] dO vO vO')
                 as'        = (nf, nf') : as
                 rb         = rbT  glbT d d
                 app        = appT glbT
-                eta        = eq   as' (d + 1) (app v (fresh d)) (app v' (fresh d)) -- applying f from μ f to the entire μ type (i.e., to VMu f)
+                eta        = eq   as' (d + 1) (app v (fresh d)) (app v' (fresh d)) -- vvv applying f from μ f to the entire μ type (i.e., to VMu f)
                 unfoldL f  = if isNonContr glbT d v  then (isNonContr glbT d v', as') else eq as' d (app f  v) v' 
                 unfoldR f' = if isNonContr glbT d v' then (False               , as') else eq as' d v  (app f' v')
           
         equivNeu as d ne ne' = case (ne, ne') of
           (NeuVar   l , NeuVar    l') -> (l == l', as)
           (NeuConst c , NeuConst  c') -> (c == c', as)
+          (NeuMu'   f , NeuMu'    f') -> eq as d f f'
           (NeuApp f a , NeuApp f' a') -> case equivNeu as d f f' of
                                            (True, as') -> eq as' d a a'
                                            failed      -> failed
@@ -155,16 +156,24 @@ isNonContr glbT dO = isNC dO
 
 --------------------------------------------------------------------------------
 
-decomposeT :: GTypes -> Lv -> ValT -> Maybe (ConstT, [ValT])
-decomposeT glbT d = \case
-  VAlias     _ _ vBody -> decomposeT glbT d vBody
+viewT :: GTypes -> Lv -> ValT -> Maybe (NeuT, [ValT])
+viewT glbT d = \case
+  VAlias     _ _ vBody -> viewT glbT d vBody
   VClosure{}           -> Nothing
-  VNeu           ne    -> case spineNe [] ne of
-                        (NeuConst c, args) -> Just (c, args)
-                        _                  -> Nothing
+  VNeu           ne    -> Just (spineNe [] ne)
   self@(VMu      f)    -> if   isNonContr glbT d  self
                           then Nothing
-                          else decomposeT glbT d (appT glbT f self)
+                          else viewT glbT d (appT glbT f self)
   where spineNe args = \case
           NeuApp ne arg -> spineNe (arg : args) ne
           ne            ->         (ne,   args)
+
+decomposeT :: GTypes -> Lv -> ValT -> Maybe (ConstT, [ValT])
+decomposeT glbT d v = viewT glbT d v >>= \case
+  (NeuConst c, args) -> Just (c, args)
+  _                  -> Nothing
+
+unrollIsoT :: GTypes -> Lv -> ValT -> Maybe ValT
+unrollIsoT glbT d v = viewT glbT d v >>= \case
+  (NeuMu' f, args) -> Just $ foldl (appT glbT) (appT glbT f (VNeu (NeuMu' f))) args
+  _                -> Nothing

@@ -3,9 +3,9 @@
 module Parser where
 
 import           Text.Parsec
-import           Text.Parsec.String    (Parser  )
-import           Text.Parsec.Language  (emptyDef)
-import           Text.Parsec.Expr
+import           Text.Parsec.String    (Parser                             )   
+import           Text.Parsec.Language  (emptyDef                           )   
+import           Text.Parsec.Expr                                           
 import qualified Text.Parsec.Token  as  Token
 
 import           Data.List             (intercalate, elemIndex, sortBy, nub)
@@ -14,7 +14,7 @@ import           Data.Functor.Identity (Identity                           )
 import qualified Data.Map            as Map
 import qualified Data.Text           as T
 
-import           Control.Monad         (when)
+import           Control.Monad         (when                               )
 
 import           Syntax
 
@@ -31,17 +31,18 @@ nasketsDef = emptyDef
     Token.opStart         = oneOf ":!#$%&*+./<=>?@\\^|-~"                      ,
     Token.opLetter        = oneOf ":>=\\"                                      ,
     Token.reservedNames   =
-      ["module"   , "where"     , "import"  ,
+      ["module"   , "where"     , "include" ,
        "Int"      , "Double"    , "String"  ,
        "IO"       , "return"    ,
        "let"      , "in"        ,
        "pack"     , "unpack"    , "as"      ,
+       "roll"     , "unroll"    ,
        "fix"      ,             
        "putStr"   , "getLine"   , "readFile", "writeFile",
        "argCount" , "argAt"     ,
        "substring", "length"    , "trunc"   ,
        "showInt"  , "showDouble",
-       "mu"       ,
+       "mu"       , "mu'"       ,
        "forall"   , "exists"   ],
     Token.reservedOpNames =
       ["::" , "∷"  , ":" ,
@@ -58,7 +59,7 @@ nasketsDef = emptyDef
        ","  ,
        "∀"  , "∃"  ,
        "^"  ,
-       "μ" ],
+       "μ"  , "μ′" ],
     Token.caseSensitive   = True }
 
 lexer :: Token.TokenParser ()
@@ -171,7 +172,8 @@ tyExp tNms = withLoc TLoc $
   <|>     (reserved  "IO"           >> return (TConst  TIO    ))
   <|> try ((reserved "forall" <|> reservedOp "∀") >> brackets parseKind <&> TConst . TForall)
   <|> try ((reserved "exists" <|> reservedOp "∃") >> brackets parseKind <&> TConst . TExists)
-  <|> try ((reserved "mu"     <|> reservedOp "μ") >> tyExp    tNms      <&> TMu             )
+  <|> try ((reserved "mu"     <|> reservedOp "μ" ) >> tyExp    tNms      <&> TMu             )
+  <|> try ((reserved "mu'"    <|> reservedOp "μ′") >> tyExp    tNms      <&> TMu'            )
   <|> try (do _            <- reservedOp "λ" <|> reservedOp "\\"
               binderGroups <- many1 (parens parseGroup <|> parseGroup)
               _            <- reservedOp "."
@@ -293,6 +295,8 @@ expPrefix tNms eNms =
   <|> try (reserved "fix"    >> EFix    <$> expTight tNms eNms)
   <|> try (reserved "return" >> EReturn <$> expTight tNms eNms)
   <|> try (reserved "pack"   >> EPack   <$> brackets (parseType tNms) <*> expTight tNms eNms)
+  <|> try (reserved "roll"   >> ERoll   <$> brackets (parseType tNms) <*> expTight tNms eNms)
+  <|> try (reserved "unroll" >> EUnroll <$> expTight tNms eNms)
   <|> expAtom tNms eNms
 
 expAtom :: Names -> Names -> Parser Exp
@@ -420,8 +424,8 @@ parseFunDeclBody gnm = do
 parseMNm :: Parser MName
 parseMNm = sepBy1 identifier (reservedOp ".") <&> MName . intercalate "."
 
-parseImport :: Parser MName
-parseImport = reserved "import" >> parseMNm
+parseInclude :: Parser MName
+parseInclude = reserved "include" >> parseMNm
 
 parseModule :: Parser Module
 parseModule = do
@@ -429,7 +433,7 @@ parseModule = do
   reserved "module"
   mnm <- parseMNm
   reserved "where"
-  imports <- many parseImport
-  decls   <- many parseDecl
+  includes <- many parseInclude
+  decls    <- many parseDecl
   eof
-  return $ Module mnm imports decls
+  return $ Module mnm includes decls

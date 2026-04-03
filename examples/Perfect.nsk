@@ -1,0 +1,50 @@
+module Main where
+
+Pair :: * -> *
+Pair = \a. { l : a, r : a }
+
+PerfectF :: (* -> *) -> (* -> *)
+PerfectF = \p. \a.
+  < Leaf : a,
+    Node : p (Pair a) >
+
+Perfect :: * -> *
+Perfect = mu' PerfectF
+
+leaf : Perfect Int
+leaf = roll [Perfect Int] < Leaf = 42 >
+
+node : Perfect Int
+node = 
+  let p   : Pair Int           = { l = 10, r = 20 }                     in
+  let sub : Perfect (Pair Int) = roll [Perfect (Pair Int)] < Leaf = p > in
+  
+  roll [Perfect Int] < Node = sub >
+
+deepNode : Perfect Int
+deepNode =
+  let p1 : Pair Int = { l = 1, r = 2 } in
+  let p2 : Pair Int = { l = 3, r = 4 } in
+  
+  let pairs : Pair (Pair Int) = { l = p1, r = p2 } in
+  
+  let sub : Perfect (Pair (Pair Int)) = roll [Perfect (Pair (Pair Int))] < Leaf = pairs > in
+  let mid : Perfect (Pair Int)        = roll [Perfect (Pair Int)]        < Node = sub   > in
+  
+  roll [Perfect Int] < Node = mid >
+
+main : IO {}
+main =
+  (unroll leaf) ?
+    < Leaf n -> putStr ("Leaf value: " ^ showInt n ^ "\n")
+    | Node x -> putStr "Unexpected node\n"
+    > >>= \_.
+
+  (unroll node) ?
+    < Leaf n   -> putStr "Unexpected leaf\n"
+    | Node sub -> 
+        (unroll sub) ?
+          < Leaf p -> putStr ("Node values: " ^ showInt p.l ^ "; " ^ showInt p.r ^ "\n")
+          | Node x -> putStr "Unexpected node\n"
+          >
+    >

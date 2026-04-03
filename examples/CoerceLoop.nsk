@@ -11,7 +11,7 @@ loop = /\a. fix (\f. \u. f u) -- f : {} -> a, u : {}
 
 main : IO {}
 main =
-  let e = loop   [Eq String Int] {}  in
-  let i = coerce [String]  [Int] e "X" in
+  let e = loop   [Eq String Int] {}     in
+  let i = coerce [String]  [Int] e  "X" in
 
   putStr (showInt i)

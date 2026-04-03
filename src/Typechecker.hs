@@ -1,7 +1,6 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot        #-}
-{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 
 module Typechecker where
@@ -71,7 +70,6 @@ withBindT lnm k = local $ \ctx ->
         ctxTNms  = lnm     : ctx.ctxTNms,
         ctxTLv   = l + 1 }
 
--- TOOD: rename these two
 lookupIdx    :: (Ctx ->           [a]) -> Ix    -> String -> TC a
 lookupGlobal :: (Ctx -> Map GName  a ) -> GName -> String -> TC a
 
@@ -137,13 +135,20 @@ reportHole hnm me mvexp = ask >>= \ctx ->
       errStr  = maybe "" ("\n\nError:\n" ++) mErr
       
   in tell ["\nHole: ?" ++ unHName hnm ++ "\n" ++ ctxBlk ++ givStr ++ goalStr ++ errStr ++ "\n"]
-  where evalE  e       = maybe (inferE e) (checkE e) mvexp
-        inferE e       = catchError (infer e <&> \vty ->      (Just vty  , Nothing , False))
-                                    (\err             -> pure (Nothing   , Just err, False))
-        checkE e vtyGl = catchError (check e vtyGl    >> pure (Just vtyGl, Nothing , True ))
-                                    (\errC            -> catchError
-                                    (infer e >>= \vty -> isEquiv vty vtyGl <&> (Just vty, Just errC,))
-                                      (\_             -> pure (Nothing   , Just errC, False)))
+  where isolate m      = asks  (`runTC` m)
+        evalE   e      = maybe (inferE  e) (checkE e) mvexp
+        inferE  e      = isolate (infer e) >>= \(res, r) ->
+                           either (\err -> pure      (Nothing , Just err, False))
+                                  (\vty -> tell r $> (Just vty, Nothing , False))
+                                  res
+        checkE e vtyGl = isolate (check e vtyGl) >>= \(res, r) ->
+                           either (\errC -> isolate (infer e) >>= \(res', r') ->
+                                      either (\_   -> pure       (Nothing , Just errC, False))
+                                             (\vty -> isEquiv vty vtyGl >>= \ok ->
+                                                      tell r' $> (Just vty, Just errC, ok))
+                                             res')
+                                  (\()   -> tell r $> (Just vtyGl, Nothing, True))
+                                  res
 
 --------------------------------------------------------------------------------
 
@@ -163,13 +168,15 @@ inferK = \case
     k <- inferK ty
     case k of { KArr kArg kRes -> checkK ty' kArg >> return kRes; _ -> throwErr errTAppMismatch }
       
-  TMu ty -> checkK ty (KArr KStar KStar) >> return KStar
+  TMu  ty -> checkK ty (KArr KStar KStar) >> return KStar
+  TMu' ty -> inferK ty >>= \case { KArr kArg kRes | kArg == kRes -> return kArg; _ -> throwErr errTMuIsoMismatch }
   
   TLoc p ty -> local (\ctx -> ctx { ctxPos = Just p }) (inferK ty)  
   where errUnboundTVar    = "Unbound type variable."
         errUnknownGlobalT = "Unknown global type: "
         errUnannTLamKind  = "Cannot infer kind for unannotated type-level lambda."
         errTAppMismatch   = "Type application evaluates onto a non-constructor."
+        errTMuIsoMismatch = "Type application of μ′ requires a type of kind k → k."
         constKind         = \case
            TInt    -> KStar
            TDouble -> KStar
@@ -315,6 +322,19 @@ infer = \case
     
     return vFCodIO
 
+  ERoll ty e -> do                                               
+    checkK ty KStar                                                   -- ty ∷ *
+    vty  <- evalT' ty                                                 
+    vUnf <- asks (\ctx -> unrollIsoT ctx.ctxGlbT ctx.ctxTLv vty)      -- unrolls if vty is μ′ (Nothing overwise)
+                                                                            
+    maybe (throwErr errRoll) (\unf -> check e unf >> return vty) vUnf -- e : f (μ′ f) ⇒ roll [ty] e : μ′ f
+
+  EUnroll e -> do                                                
+    vty  <- infer e                                              -- e : vty
+    vUnf <- asks (\ctx -> unrollIsoT ctx.ctxGlbT ctx.ctxTLv vty) -- unrolls if vty is μ′
+    
+    maybe (throwErr errUnroll) return vUnf                       -- unroll e : f (μ′ f)
+
   EHole hnm me -> do
     reportHole hnm me Nothing
     throwErr (errHoleInfer hnm)
@@ -337,6 +357,8 @@ infer = \case
         errPack                  = "Cannot infer the type for pack."
         errUnpack                = "Cannot infer the type for unpack."
         errVariant               = "Cannot infer the type for variant injection."
+        errRoll                  = "Target type of roll must be an applied μ′ type."
+        errUnroll                = "Argument of unroll must have an applied μ′ type."
         constT = \case
            EPutStr     -> tString                       ~> tIO     tUnit
            EGetLine    ->                                  tIO    (tOption tString)

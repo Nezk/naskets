@@ -2,28 +2,28 @@
 
 module Main where
 
-import           System.Environment (getArgs      , withArgs                   )
-import           System.Exit        (exitFailure  , exitSuccess                )
-import           System.IO          (hPutStrLn    , stderr                     )
-import           System.FilePath    (takeDirectory, pathSeparator, (<.>), (</>))
-import           System.Directory   (doesFileExist                             )
-
-import           Control.Monad      (foldM        , when         , unless      )
-import           Data.List          (isInfixOf                                 )
-import           Data.Bool          (bool                                      )
-                                                                               
-import           Data.Set           (Set                                       )
-import qualified Data.Set         as Set                                       
-import qualified Data.Map         as Map                                       
-                                                                               
-import           Text.Parsec        (parse                                     )
-
-import           Syntax             
-import           Eval               (evalT                                     )
-import           Equiv              (equivT                                    )
-import           Run                (buildGlobals , runProgram   , runExcs     )
-import           Typechecker        (checkProgram , Ctx(..)                    )
-import           Parser             (parseModule                               )
+import           System.Environment (getArgs      , withArgs                                 )
+import           System.Exit        (exitFailure  , exitSuccess                              )
+import           System.IO          (hPutStrLn    , stderr                                   )
+import           System.FilePath    (takeDirectory, takeBaseName, pathSeparator, (<.>), (</>))
+import           System.Directory   (doesFileExist                                           )
+                                                                                             
+import           Control.Monad      (foldM        , when         , unless                    )
+import           Data.List          (isInfixOf                                               )
+import           Data.Bool          (bool                                                    )
+                                                                                             
+import           Data.Set           (Set                                                     )
+import qualified Data.Set         as Set                                                     
+import qualified Data.Map         as Map                                                     
+                                                                                             
+import           Text.Parsec        (parse                                                   )
+                                                                                             
+import           Syntax                                                                      
+import           Eval               (evalT                                                   )
+import           Equiv              (equivT                                                  )
+import           Run                (buildGlobals , runProgram   , runExcs                   )
+import           Typechecker        (checkProgram , Ctx(..)                                  )
+import           Parser             (parseModule                                             )
 
 --------------------------------------------------------------------------------
 
@@ -42,7 +42,11 @@ loadModule base path mnmExp st = case mnmExp of
   Just e | Set.member e (stVisiting st) -> abort  $ errC e
          | Set.member e (stLoaded   st) -> return   (e, st)
   _                                     -> do
-    m@(Module mnm imports decls) <- readFile path >>= either (abort . errP) return . parse parseModule path
+    m@(Module mnm includes decls) <- readFile path >>= either (abort . errP) return . parse parseModule path
+    
+    let fileBase = MName (takeBaseName path)
+    when (mnm /= fileBase && mnm /= MName "Main") $
+      abort $ "Module name mismatch in " ++ path ++ ": expected " ++ unMName fileBase ++ " or Main but got " ++ unMName mnm
     
     mapM_ (\e -> when (e /= mnm) $ abort $ errM e mnm) mnmExp
     
@@ -60,19 +64,19 @@ loadModule base path mnmExp st = case mnmExp of
                  then unless hasMain $ abort  errNoMain
                  else when   hasMain $ abort (errHasMain mnm)
                  
-               stV <- foldM (loadImport base) (st { stVisiting = Set.insert mnm (stVisiting st) }) imports
+               stV <- foldM (loadInclude base) (st { stVisiting = Set.insert mnm (stVisiting st) }) includes
                
-               return (mnm, stV { stVisiting = Set.delete mnm (stVisiting stV),
-                                  stLoaded   = Set.insert mnm (stLoaded   stV),
-                                  stOrder    = m :             stOrder    stV })
+               return (mnm, stV {stVisiting = Set.delete mnm (stVisiting stV),
+                                 stLoaded   = Set.insert mnm (stLoaded   stV),
+                                 stOrder    = m :             stOrder    stV})
   where errP       e     = "Parse error in "          ++ path ++ ":\n" ++ show e
         errM       e mnm = "Module name mismatch in " ++ path ++ ": expected " ++ unMName e ++ " but got " ++ unMName mnm
         errC         mnm = "Cyclic module dependency detected involving: " ++ unMName mnm
         errNoMain        = "Module Main must export a main function."
         errHasMain   mnm = "Library module "  ++ unMName mnm ++ " cannot define a main function."
 
-loadImport :: FilePath -> LoadState -> MName -> IO LoadState
-loadImport base st mnm = doesFileExist path >>= bool
+loadInclude :: FilePath -> LoadState -> MName -> IO LoadState
+loadInclude base st mnm = doesFileExist path >>= bool
   (abort $ "Could not find module " ++ unMName mnm ++ " at " ++ path)
   (snd <$> loadModule base path (Just mnm) st)
   where path = base </> map (\case '.' -> pathSeparator; c -> c) (unMName mnm) <.> "nsk"

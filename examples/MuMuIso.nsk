@@ -1,0 +1,13 @@
+module MuMuIso where
+
+F :: (* -> *) -> (* -> *)
+F = \loop. \b :: *. loop b
+
+Loop :: * -> *
+Loop = mu' F
+
+A :: *
+A = mu Loop
+
+a : A
+a = ?uninhab

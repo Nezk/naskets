@@ -15,6 +15,7 @@ evalT glbT envT = \case
   TLam    lnm mk body -> VClosure lnm mk body envT
   TApp        ty ty'  -> appT     glbT (evalT glbT envT ty) (evalT glbT envT ty')
   TMu         ty      -> VMu           (evalT glbT envT ty)    
+  TMu'        ty      -> VNeu          (NeuMu'              (evalT glbT envT ty))
   TLoc    _   ty      -> evalT    glbT             envT ty
 
 appT :: GTypes -> ValT -> ValT -> ValT
@@ -34,6 +35,7 @@ rbT glbT dOrg d = \case --   v global reference map lookup is fast anyway
           NeuVar   l     | l < dOrg  -> NfNeuFVar      l
                          | otherwise -> NfNeuBVar (Ix (unLv d - 1 - unLv l))
           NeuConst c                 -> NfNeuConst     c
+          NeuMu'   vBody             -> NfNeuMu'      (rbT glbT dOrg d vBody)
           NeuApp   ne v'             -> NfNeuApp      (rbNe ne) (rbT glbT dOrg d v')
 
 --------------------------------------------------------------------------------
@@ -50,3 +52,4 @@ nfToT d = \case
           NfNeuFVar  (Lv l)     -> TVar   (Ix (unLv dCurrent - 1 - l))
           NfNeuApp       nf nf' -> TApp   (neuNfToT dCurrent nf) (nfToT dCurrent nf')
           NfNeuMu        nf     -> TMu    (nfToT    dCurrent nf)
+          NfNeuMu'       nf     -> TMu'   (nfToT    dCurrent nf)

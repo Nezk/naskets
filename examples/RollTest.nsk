@@ -1,0 +1,13 @@
+module RollTest where
+
+F :: * -> *
+F = \a. Int
+
+Iso :: *
+Iso = mu' F
+
+Equi :: *
+Equi = mu (\a. Iso)
+
+test : Equi
+test = roll [Equi] 42

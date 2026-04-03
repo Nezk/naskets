@@ -26,5 +26,3 @@ fExp = /\a. \e. e ?
      | EUnit u -> let c = coerce in ?h
      >
 
-test : Int -> Int
-test = ?h{\x. x}

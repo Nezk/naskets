@@ -210,7 +210,8 @@ ppType tNms p t = case collectArgs t of
     TConst  c                 -> ppConstT c
     
     TLam    lnm  mk      tBdy -> let lnm' = freshL lnm in parens 0 $ "λ" ++ lnm' ++ fmtKindAnn mk ++ ". " ++ ppBody lnm' tBdy
-    TMu     t'                -> parens precApp $ "μ " ++ pp (precApp + 1) t'
+    TMu     t'                -> parens precApp $ "μ "  ++ pp (precApp + 1) t'
+    TMu'    t'                -> parens precApp $ "μ′ " ++ pp (precApp + 1) t'
     
     TApp    (TApp op t') t''  | Just (sym, opP, assoc) <- isBinOp op ->
         let (p', p'') = binOpAssoc opP assoc
@@ -247,7 +248,8 @@ ppNeuNfT tNms p nf = case collectArgsNeuNf nf of
     NfNeuGlobal gnm    -> unGName gnm
     NfNeuConst  c      -> ppConstT c
     
-    NfNeuMu     nfBody -> parens precApp $ "μ " ++ pp (precApp + 1) nfBody
+    NfNeuMu     nfBody -> parens precApp $ "μ "  ++ pp (precApp + 1) nfBody
+    NfNeuMu'    nfBody -> parens precApp $ "μ′ " ++ pp (precApp + 1) nfBody
     
     NfNeuApp    (NfNeuApp op nf') nf'' | Just (sym, opP, assoc) <- isBinOpNeuNf op ->
         let (p', p'') = binOpAssoc opP assoc
@@ -331,11 +333,13 @@ ppExp tNms eNms p = \case
   EProj   e   lbl                -> parens precTApp   $ pp precTApp e ++ "." ++ unLabel lbl
   EMatch  e   brs                -> parens precAppExp $ pp (precAppExp + 1) e ++ " ? ⟨" ++ fmtMap (\lbl (lnm, e') -> unLabel lbl ++ " " ++ unLName lnm ++ " ↦ " ++ ppBodyE (unLName lnm) e') brs ++ "⟩"
     
-  EPack   t   e                  -> parens precAppExp $ "pack ["  ++ ppT 0 t ++ "] " ++ pp (precAppExp + 1) e
+  EPack   t   e                  -> parens precAppExp $ "pack ["   ++ ppT 0 t ++ "] " ++ pp (precAppExp + 1) e
+  ERoll   t   e                  -> parens precAppExp $ "roll ["   ++ ppT 0 t ++ "] " ++ pp (precAppExp + 1) e
   EUnpack e   lnmT lnmE eBdy     -> let lnmT' = freshT lnmT; lnmE' = freshE lnmE in parens 0 $ "unpack " ++ pp 0 e ++ " as ⟨" ++ lnmT' ++ ", " ++ lnmE' ++ "⟩ in " ++ ppBody lnmT' lnmE' eBdy
+  EUnroll e                      -> parens precAppExp $ "unroll "  ++ pp (precAppExp + 1) e
 
-  EFix    e                      -> parens precAppExp $ "fix "    ++ pp (precAppExp + 1) e
-  EReturn e                      -> parens precAppExp $ "return " ++ pp (precAppExp + 1) e
+  EFix    e                      -> parens precAppExp $ "fix "     ++ pp (precAppExp + 1) e
+  EReturn e                      -> parens precAppExp $ "return "  ++ pp (precAppExp + 1) e
   EBind   e   e'                 -> parens precBind   $ pp precBind e ++ " >>= " ++ pp (precBind + 1) e'
                               
   EHole   hnm me                 -> "?" ++ unHName hnm ++ maybe "" (("{" ++) . (++ "}") . pp 0) me

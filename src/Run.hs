@@ -61,8 +61,10 @@ erase = \case
   EProj    e lbl       -> XProj          (erase e) lbl
   EMatch   e brs       -> XMatch         (erase e) (Map.map (erase . snd) brs)
                                          
-  EPack    _ e         -> erase    e     
+  EPack    _ e         -> erase    e
+  ERoll    _ e         -> erase    e     
   EUnpack  e _ _ eBody -> XLet           (erase e) (erase eBody)
+  EUnroll  e           -> erase    e
                                          
   EFix     e           -> XFix           (erase e)
                                          
