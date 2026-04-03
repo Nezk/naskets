@@ -75,7 +75,7 @@ data ValT
 data NeuT
   = NeuVar    Lv      
   | NeuConst     ConstT
-  | NeuMu'       ValT        -- neutral until manually unrolled
+  | NeuMu'       ValT        
   | NeuApp       NeuT   ValT
 
 --------------------------------------------------------------------------------

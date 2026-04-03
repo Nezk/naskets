@@ -170,8 +170,8 @@ tyExp tNms = withLoc TLoc $
   <|>     (reserved  "Double"       >> return (TConst  TDouble))
   <|>     (reserved  "String"       >> return (TConst  TString))
   <|>     (reserved  "IO"           >> return (TConst  TIO    ))
-  <|> try ((reserved "forall" <|> reservedOp "∀") >> brackets parseKind <&> TConst . TForall)
-  <|> try ((reserved "exists" <|> reservedOp "∃") >> brackets parseKind <&> TConst . TExists)
+  <|> try ((reserved "forall" <|> reservedOp "∀" ) >> brackets parseKind <&> TConst . TForall)
+  <|> try ((reserved "exists" <|> reservedOp "∃" ) >> brackets parseKind <&> TConst . TExists)
   <|> try ((reserved "mu"     <|> reservedOp "μ" ) >> tyExp    tNms      <&> TMu             )
   <|> try ((reserved "mu'"    <|> reservedOp "μ′") >> tyExp    tNms      <&> TMu'            )
   <|> try (do _            <- reservedOp "λ" <|> reservedOp "\\"
@@ -222,7 +222,7 @@ expTable =
     infixN (lsym       "=^" ) (binOp EStringEq          ) ,
     infixN (lsym       "=." ) (binOp EDoubleEq          )],
    [infixL (reservedOp ">>=") EBind                      ]]
-  where prefix p f  = Prefix (try (getPosition <* p) <&> \sp e   -> ELoc (toPos sp) (f e))
+  where prefix p f  = Prefix (try (getPosition <* p) <&> \sp e   -> ELoc (toPos sp) (f e  ))
         infixL p f  = Infix  (try (getPosition <* p) <&> \sp l r -> ELoc (toPos sp) (f l r)) AssocLeft
         infixR p f  = Infix  (try (getPosition <* p) <&> \sp l r -> ELoc (toPos sp) (f l r)) AssocRight
         infixN p f  = Infix  (try (getPosition <* p) <&> \sp l r -> ELoc (toPos sp) (f l r)) AssocNone

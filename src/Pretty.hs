@@ -324,8 +324,8 @@ ppExp tNms eNms p = \case
   
   EApp    (EApp (EConst c) e) e' | Just (opP, p', p'', sym) <- binOpInfo c -> fmtBinOp p opP sym (pp p' e) (pp p'' e')
   
-  EApp    e   e'                 -> parens precAppExp $ pp precAppExp e ++ " " ++ pp (precAppExp + 1) e'
-  ETApp   e   t                  -> parens precTApp   $ pp precTApp e ++ " [" ++ ppT 0 t ++ "]"
+  EApp    e   e'                 -> parens precAppExp $ pp precAppExp e ++ " "  ++ pp (precAppExp + 1) e'
+  ETApp   e   t                  -> parens precTApp   $ pp precTApp   e ++ " [" ++ ppT 0 t ++ "]"
     
   ERecord flds                   -> "{" ++ fmtMap (\lbl e' -> unLabel lbl ++ " = " ++ pp 0 e') flds ++ "}"
   EVariant lbl e                 -> "⟨" ++ unLabel lbl ++ " = " ++ pp 0 e ++ "⟩"
