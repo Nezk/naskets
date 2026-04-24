@@ -128,11 +128,11 @@ reportHole hnm me mvexp = ask >>= \ctx ->
       mGiven  = me $> (gStr ++ bool "" " ✓" isOk)
       
       goalStr = maybe     "Goal: " (const "Goal:  ") mGiven ++ maybe "_" (ppClosed ctx) mvexp
-      sepLine = replicate (maximum (length goalStr : maybe 0 (const gLen) mGiven : map length ctxLns)) '-' ++ "\n"
+      sepLine = replicate (maximum (length goalStr : maybe 0 (const gLen) mGiven : map length ctxLns)) '─' ++ "\n"
       
-      ctxBlk  = bool ("\nContext:\n\n" ++ unlines ctxLns ++ sepLine) ("\n" ++ sepLine) (null ctxList)
-      givStr  = maybe "" (++ "\n")           mGiven
-      errStr  = maybe "" ("\n\nError:\n" ++) mErr
+      ctxBlk  = bool     ("\nContext:\n\n" ++ unlines ctxLns ++ sepLine) ("\n" ++ sepLine) (null ctxList)
+      givStr  = maybe "" (++        "\n"     ) mGiven
+      errStr  = maybe "" ("\n\nError:\n"   ++) mErr
       
   in tell ["\nHole: ?" ++ unHName hnm ++ "\n" ++ ctxBlk ++ givStr ++ goalStr ++ errStr ++ "\n"]
   where isolate m      = asks  (`runTC` m)
@@ -145,7 +145,7 @@ reportHole hnm me mvexp = ask >>= \ctx ->
                            either (\errC -> isolate (infer e) >>= \(res', r') ->
                                       either (\_   -> pure       (Nothing , Just errC, False))
                                              (\vty -> isEquiv vty vtyGl >>= \ok ->
-                                                      tell r' $> (Just vty, Just errC, ok))
+                                                      tell r' $> (Just vty, Just errC, ok   ))
                                              res')
                                   (\()   -> tell r $> (Just vtyGl, Nothing, True))
                                   res
@@ -390,7 +390,7 @@ infer = \case
                  tOption   = TApp (TApp  (TConst (TVariantC [Label "None",  Label "Some"])) tUnit  )
                  tResult   = TApp (TApp  (TConst (TVariantC [Label "Error", Label "Ok"  ])) tString) -- Something Either-like
                  tIO       = TApp (TConst TIO)
-                 a ~> b    = TApp (TApp  (TConst  TArr)     a)  b
+                 a ~> b    = TApp (TApp  (TConst  TArr) a) b
                  infixr 4 ~>
 
 check :: Exp -> ValT -> TC ()
