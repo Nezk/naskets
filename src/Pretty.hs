@@ -140,7 +140,7 @@ fmtQuantGroups = \case
 
 fmtQuant :: Prec -> Quant -> TyBinds -> String -> String
 fmtQuant p q binds inner = parensIf (p > 0) $ sym q ++ fmtQuantGroups (groupBinds binds) ++ ". " ++ inner
-  where sym = \case { QForall -> "∀"; QExists -> "∃" }
+  where sym = \case { QForall -> "∀ "; QExists -> "∃ " }
 
 fmtFields :: (a -> String) -> Labels -> [a] -> String
 fmtFields pp ls args = intercalate ", " $ zipWith (\l a -> unLabel l ++ " : " ++ pp a) ls args
@@ -175,7 +175,7 @@ ppConstT = \case
   TArr         -> "(→)"
   TIO          -> "IO"
   
-  TForall   k  -> "∀["  ++ ppKind 0 k ++ "]"
+  TForall   k  -> "∀["  ++ ppKind 0 k ++ "]" -- TODO
   TExists   k  -> "∃["  ++ ppKind 0 k ++ "]"
   
   TRecordC  ls -> "{" ++ joinLbls ls ++ "}"
@@ -375,12 +375,12 @@ ppErased p = \case
   XRecord  flds                   -> "{" ++ fmtMap (\lbl e' -> unLabel lbl ++ " = " ++ pp 0 e') flds ++ "}"
   XVariant lbl e                  -> "⟨" ++ unLabel lbl ++ " = " ++ pp 0 e ++ "⟩"
   
-  XProj    e   lbl                -> parens precTApp   $ pp precTApp e ++ "." ++ unLabel lbl
+  XProj    e   lbl                -> parens precTApp   $ pp  precTApp e ++ "." ++ unLabel lbl
   XMatch   e   brs                -> parens precAppExp $ pp (precAppExp + 1) e ++ " ? ⟨" ++ fmtMap (\lbl e' -> unLabel lbl ++ " ↦ " ++ pp 0 e') brs ++ "⟩"
   
   XFix     e                      -> parens precAppExp $ "fix "    ++ pp (precAppExp + 1) e
   XReturn  e                      -> parens precAppExp $ "return " ++ pp (precAppExp + 1) e
-  XBind    e   e'                 -> parens precBind   $ pp precBind e ++ " >>= " ++ pp (precBind + 1) e'
+  XBind    e   e'                 -> parens precBind   $              pp  precBind e ++ " >>= " ++ pp (precBind + 1) e'
   where pp        = ppErased
         parens pr = parensIf (p > pr)
 
