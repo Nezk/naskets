@@ -37,9 +37,7 @@ rbT glbT dOrg d = \case --   v global reference map lookup is fast anyway
           NeuConst c                 -> NfNeuConst     c
           NeuMu'   vBody             -> NfNeuMu'                (rbT glbT dOrg d vBody)
           NeuApp   ne v'             -> NfNeuApp      (rbNe ne) (rbT glbT dOrg d v'   )
-        foldArgs acc = \case
-          Emp     -> acc
-          vs :> v -> NfNeuApp (foldArgs acc vs) (rbT glbT dOrg d v)
+        foldArgs acc = \case { Emp -> acc; vs :> v -> NfNeuApp (foldArgs acc vs) (rbT glbT dOrg d v) }
 
 --------------------------------------------------------------------------------
 

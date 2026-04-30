@@ -68,8 +68,8 @@ equivT glbT dO vO vO' = fst (eq [] dO vO vO')
           where unalias = \case { VAlias _ _ body -> unalias body; val -> val }
           
         checkArgs d as = \case
-          (Emp     , Emp       ) -> Just as
-          (vs :> v , vs' :> v' ) -> case eq as d v v' of
+          (Emp     , Emp      ) -> Just as
+          (vs :> v , vs' :> v') -> case eq as d v v' of
                                       (True , as') -> checkArgs d as' (vs, vs')
                                       (False, _  ) -> Nothing
           _                      -> Nothing
