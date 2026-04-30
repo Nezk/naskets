@@ -80,10 +80,10 @@ fmtBinOp p opP sym e e' = parensIf (p > opP) $ e ++ " " ++ sym ++ " " ++ e'
 
 --------------------------------------------------------------------------------
 
-type TyBinds      = [( String,  Kind)]
-type QuantGroups  = [([String], Kind)]
+type BindsT      = [( String,  Kind)]
+type QuantGroups = [([String], Kind)]
 
-type Collected  a = (TyBinds, Names, a)
+type Collected  a = (BindsT, Names, a)
 type Quantifier a = Maybe (Quant, Kind, LName, a)
 
 data Quant
@@ -125,12 +125,12 @@ collectQNf :: Quant -> Names -> NfT  -> Collected NfT
 collectQ   = collectQGen isQuant
 collectQNf = collectQGen isQuantNf
 
-groupBinds :: TyBinds -> QuantGroups
+groupBinds :: BindsT -> QuantGroups
 groupBinds = foldr groupStep []
   where groupStep (n, k) = \case
-          []                          -> [([n], k)]
-          (ns, k') : rest | k == k'   -> (n : ns, k) : rest
-                          | otherwise -> ([n],    k) : (ns, k') : rest
+          []                          -> [([n]    , k)]
+          (ns, k') : rest | k == k'   -> (  n : ns, k)            : rest
+                          | otherwise -> ( [n]    , k) : (ns, k') : rest
 
 fmtQuantGroups :: QuantGroups -> String
 fmtQuantGroups = \case
@@ -138,7 +138,7 @@ fmtQuantGroups = \case
   gs  -> unwords [ "(" ++ fmtGroup g ++ ")" | g <- gs ]
   where fmtGroup (ns, k) = unwords ns ++ " ∷ " ++ ppKind 0 k
 
-fmtQuant :: Prec -> Quant -> TyBinds -> String -> String
+fmtQuant :: Prec -> Quant -> BindsT -> String -> String
 fmtQuant p q binds inner = parensIf (p > 0) $ sym q ++ fmtQuantGroups (groupBinds binds) ++ ". " ++ inner
   where sym = \case { QForall -> "∀ "; QExists -> "∃ " }
 
