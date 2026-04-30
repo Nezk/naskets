@@ -268,39 +268,39 @@ apply glbT v thArg = case v of
             EShowInt    -> 1; EShowDouble -> 1;
             _           -> internalErr "arity: unreachable primitive" }
 
-applyConst :: GErased -> ConstE -> Args -> IO ValE
+applyConst :: GErased -> ConstE -> EArgs -> IO ValE
 applyConst glbT c args = case (c, args) of
-  (EAdd,        [e,   e'     ]) -> binInt    (+) e e'
-  (ESub,        [e,   e'     ]) -> binInt    (-) e e'
-  (EMul,        [e,   e'     ]) -> binInt    (*) e e'
+  (EAdd,        [e, e'     ]) -> binInt    (+) e e'
+  (ESub,        [e, e'     ]) -> binInt    (-) e e'
+  (EMul,        [e, e'     ]) -> binInt    (*) e e'
   
-  (EAddD,       [e,   e'     ]) -> binDouble (+) e e'
-  (ESubD,       [e,   e'     ]) -> binDouble (-) e e'
-  (EMulD,       [e,   e'     ]) -> binDouble (*) e e'
-  (EDivD,       [e,   e'     ]) -> forceDouble glbT e >>= \d -> forceDouble glbT e' >>= \d' -> let res = d / d' in
-                                   if isNaN res || isInfinite res -- Not sure about this check though
-                                     then VVariant (Label "None") <$> mkThunkV (VRecord Map.empty)
-                                     else VVariant (Label "Some") <$> mkThunkV (VDouble res)      
-  (ETrunc,      [e           ]) -> forceDouble glbT e >>= \d -> return $ VInt $ if isNaN d || isInfinite d then 0 else truncate d
+  (EAddD,       [e, e'     ]) -> binDouble (+) e e'
+  (ESubD,       [e, e'     ]) -> binDouble (-) e e'
+  (EMulD,       [e, e'     ]) -> binDouble (*) e e'
+  (EDivD,       [e, e'     ]) -> forceDouble glbT e >>= \d -> forceDouble glbT e' >>= \d' -> let res = d / d' in
+                                 if isNaN res || isInfinite res
+                                   then VVariant (Label "None") <$> mkThunkV (VRecord Map.empty)
+                                   else VVariant (Label "Some") <$> mkThunkV (VDouble res)      
+  (ETrunc,      [e         ]) -> forceDouble glbT e >>= \d -> return $ VInt $ if isNaN d || isInfinite d then 0 else truncate d
   
-  (EIntEq,      [e,   e'     ]) -> cmpInt    (==) e e'
-  (EStringEq,   [e,   e'     ]) -> cmpString (==) e e'
-  (EDoubleEq,   [e,   e'     ]) -> cmpDouble (==) e e'
+  (EIntEq,      [e, e'     ]) -> cmpInt    (==) e e'
+  (EStringEq,   [e, e'     ]) -> cmpString (==) e e'
+  (EDoubleEq,   [e, e'     ]) -> cmpDouble (==) e e'
   
-  (EConcat,     [e,   e'     ]) -> forceString glbT e >>= \s  -> forceString glbT e' >>= \s' -> return $ VString (T.append s s')
-  (ESubstring,  [e,   e', e'']) -> forceInt    glbT e >>= \st -> forceInt    glbT e' >>= \ln -> forceString glbT e'' >>= \s ->
-                                   let n   = fromIntegral (T.length s) -- st = start, ln = length
-                                       st' = max 0        (min   st n)
-                                       ed  = min (st' + max 0 ln)   n
-                                   in return $ VString (T.take (fromIntegral (ed - st')) (T.drop (fromIntegral st') s))
-  (ELength,     [e           ]) -> VInt    . fromIntegral . T.length <$> forceString glbT e
-  (EShowInt,    [e           ]) -> VString . T.pack . show <$> forceInt    glbT e
-  (EShowDouble, [e           ]) -> VString . T.pack . show <$> forceDouble glbT e
+  (EConcat,     [e, e'     ]) -> forceString glbT e >>= \s  -> forceString glbT e' >>= \s' -> return $ VString (T.append s s')
+  (ESubstring,  [e, e', e'']) -> forceInt    glbT e >>= \st -> forceInt    glbT e' >>= \ln -> forceString glbT e'' >>= \s ->
+                                 let n   = fromIntegral (T.length s) -- st = start, ln = length
+                                     st' = max 0        (min   st n)
+                                     ed  = min (st' + max 0 ln)   n
+                                 in return $ VString (T.take (fromIntegral (ed - st')) (T.drop (fromIntegral st') s))
+  (ELength,     [e         ]) -> VInt    . fromIntegral . T.length      <$> forceString glbT e
+  (EShowInt,    [e         ]) -> VString .                T.pack . show <$> forceInt    glbT e
+  (EShowDouble, [e         ]) -> VString .                T.pack . show <$> forceDouble glbT e
   
-  (EPutStr,     [e           ]) -> return $ VIOAct (IOStandalone (IPutStr    e   ))
-  (EReadFile,   [e           ]) -> return $ VIOAct (IOStandalone (IReadFile  e   ))
-  (EWriteFile,  [e,   e'     ]) -> return $ VIOAct (IOStandalone (IWriteFile e e'))
-  (EArgAt,      [e           ]) -> return $ VIOAct (IOStandalone (IArgAt     e   ))
+  (EPutStr,     [e         ]) -> return $ VIOAct (IOStandalone (IPutStr    e   ))
+  (EReadFile,   [e         ]) -> return $ VIOAct (IOStandalone (IReadFile  e   ))
+  (EWriteFile,  [e, e'     ]) -> return $ VIOAct (IOStandalone (IWriteFile e e'))
+  (EArgAt,      [e         ]) -> return $ VIOAct (IOStandalone (IArgAt     e   ))
   
   _                             -> internalErr ("applyConst: unexpected arguments for " ++ ppConstE c)
   where binInt    op e e' = forceInt    glbT e >>= \v -> forceInt    glbT e' >>= \v' -> return $ VInt    (v `op` v') 

@@ -66,11 +66,14 @@ data ConstT
 
 --------------------------------------------------------------------------------
 
+infixl 5 :>
+data Args a = Emp | Args a :> a
+
 data ValT
   = VNeu                        NeuT
   | VMu                         ValT      
   | VClosure LName (Maybe Kind) Type EnvT  
-  | VAlias   GName [ValT]       ValT      -- The ValT argument is lazy, I HOPE
+  | VAlias   GName (Args ValT)  ValT      -- The ValT argument is lazy, I HOPE
 
 data NeuT
   = NeuVar    Lv      
@@ -181,7 +184,7 @@ data Erased
   | XBind    Erased Erased
 
 type Env      = [Thunk] -- Run env for closures
-type Args     = [Thunk] -- Args for partial application
+type EArgs    = [Thunk] -- Arguments for partial application
 type ExcDecls = [Exp]   -- Exec. declarations (>> …)
 
 data ThunkState
@@ -202,7 +205,7 @@ data ValE
   | VDouble   Double
   | VString   Text
               
-  | VPartial  ConstE    Args -- partial application, ie., (+) 1
+  | VPartial  ConstE    EArgs -- partial application, ie., (+) 1
               
   | VIOAct    IOActVal
 
