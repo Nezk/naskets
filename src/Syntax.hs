@@ -184,7 +184,7 @@ data Erased
   | XBind    Erased Erased
 
 type Env      = [Thunk] -- Run env for closures
-type EArgs    = [Thunk] -- Arguments for partial application
+type ArgsE    = [Thunk] -- Arguments for partial application
 type ExcDecls = [Exp]   -- Exec. declarations (>> …)
 
 data ThunkState
@@ -205,7 +205,7 @@ data ValE
   | VDouble   Double
   | VString   Text
               
-  | VPartial  ConstE    EArgs -- partial application, ie., (+) 1
+  | VPartial  ConstE    ArgsE -- partial application, ie., (+) 1
               
   | VIOAct    IOActVal
 

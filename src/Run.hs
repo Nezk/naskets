@@ -268,7 +268,7 @@ apply glbT v thArg = case v of
             EShowInt    -> 1; EShowDouble -> 1;
             _           -> internalErr "arity: unreachable primitive" }
 
-applyConst :: GErased -> ConstE -> EArgs -> IO ValE
+applyConst :: GErased -> ConstE -> ArgsE -> IO ValE
 applyConst glbT c args = case (c, args) of
   (EAdd,        [e, e'     ]) -> binInt    (+) e e'
   (ESub,        [e, e'     ]) -> binInt    (-) e e'

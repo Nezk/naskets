@@ -59,8 +59,8 @@ throwErr msg = asks ctxPos >>= maybe (throwError msg) (\(Pos f l c) -> throwErro
 withBind  :: LName -> ValT -> TC a -> TC a
 withBindT :: LName -> Kind -> TC a -> TC a
 -- on term level binders
-withBind lnm v = local $ \ctx ->
-  ctx { ctxETs  = v   : ctx.ctxETs,
+withBind lnm vty = local $ \ctx ->
+  ctx { ctxETs  = vty : ctx.ctxETs,
         ctxENms = lnm : ctx.ctxENms }
 -- on type level binders and Λ (which is not, eh, a type-level binder)
 withBindT lnm k = local $ \ctx ->
