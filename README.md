@@ -39,13 +39,13 @@ The `Makefile` wraps Cabal: `make` builds and copies the binary to the project r
 | `Int`, `Double`, `String` | Base types |
 | `IO τ` | IO monad |
 | `τ → τ′` | Function type |
-| `{ l₁ : τ₁, … }` | Record type; `{}` is the unit type (= empty product) |
-| `⟨ l₁ : τ₁, … ⟩` | Variant type; `⟨⟩` is the empty variant (void) |
-| `∀a ∷ κ. τ` | Universal quantification |
-| `∃a ∷ κ. τ` | Existential quantification |
+| `{ l₁ : τ₁, … }` | Record type, `{}` is the unit type (= empty product) |
+| `⟨ l₁ : τ₁, … ⟩` | Variant type, `⟨⟩` is the empty variant (void) |
+| `∀ a ∷ κ. τ` | Universal quantification |
+| `∃ a ∷ κ. τ` | Existential quantification |
 | `μ τ` | Equirecursive type (where `τ ∷ * → *`) |
 | `μ′ τ` | Isorecursive type (where `τ ∷ κ → κ`) |
-| `λa ∷ κ. τ` | Type-level lambda; kind annotation is optional |
+| `λ a ∷ κ. τ` | Type-level lambda, *kind annotation is optional* |
 | `τ σ` | Type application |
 
 Record and variant labels are sorted canonically (alphabetically) during parsing.
@@ -56,11 +56,11 @@ Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the ex
 
 | Syntax | Description |
 | :--- | :--- |
-| `λx : τ. e` | Lambda; type annotation is optional |
-| `Λa ∷ κ. e` | Type abstraction; kind annotation is optional |
+| `λ x : τ. e` | Lambda, *type annotation is optional* |
+| `Λ a ∷ κ. e` | Type lambda, *kind annotation is optional* |
 | `e e′` | Term application |
 | `e [τ]` | Type application |
-| `let x : τ = e in e′` | Let binding; type annotation is optional |
+| `let x : τ = e in e′` | Let binding, *type annotation is optional* |
 | `{ l₁ = e₁, … }` | Record construction |
 | `e.l` | Record projection |
 | `⟨ l = e ⟩` | Variant construction |
@@ -74,7 +74,7 @@ Therefore, `{ b : Int, a : String }` and `{ a : String, b : Int }` denote the ex
 | `e >>= e′` | IO monad bind |
 | `42`, `3.14`, `"hello"` | Integer, double, and string literals |
 | `(e : τ)` | Type annotation |
-| `?h` or `?h{e}` | Typed hole (optionally containing a guess expression `e`) |
+| `?h` or `?h{e}` | Typed hole, *optionally containing a guess expression* `e` |
 
 ### Built-ins
 
