@@ -1,12 +1,14 @@
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE PatternGuards   #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Pretty where
 
-import           Data.Bool     ( bool       )
-import           Data.List     ( intercalate)
-import qualified Data.Map   as   Map
-import qualified Data.Text  as   T
+import           Control.Monad.Reader
+import           Data.Bool            ( bool        )
+import           Data.List            ( intercalate )
+import qualified Data.Map          as   Map
+import qualified Data.Text         as   T
 
 import           Syntax
 import           Utils  
@@ -14,11 +16,6 @@ import           Utils
 --------------------------------------------------------------------------------
 
 type Prec = Int
-
-data Assoc
-  = LeftAssoc
-  | RightAssoc
-  | NoneAssoc
 
 precApp, precArr, precTApp, precAppExp, precBind :: Prec
 
@@ -31,26 +28,17 @@ precBind   = 1
 parensIf :: Bool -> String -> String
 parensIf cond s = bool s ("(" ++ s ++ ")") cond
 
-binOpAssoc :: Prec -> Assoc -> (Prec, Prec)
-binOpAssoc opP = \case
-  LeftAssoc  -> (opP    , opP + 1)
-  RightAssoc -> (opP + 1, opP    )
-  NoneAssoc  -> (opP + 1, opP + 1)
+cDepth :: Int -> String -> String
+cDepth d s = "\ESC[" ++ show (31 + (d `mod` 5)) ++ "m" ++ s ++ "\ESC[0m"
 
 nameSuffixes :: [String]
 nameSuffixes = "" : "′" : "″" : "‴" : map show [(1 :: Int)..]
 
-freshName :: String -> Names -> String 
-freshName base nms = findFresh nameSuffixes
+freshNm :: String -> Names -> String 
+freshNm base nms = findFresh nameSuffixes
   where findFresh = \case
           s : ss -> let lnm = base ++ s in bool (findFresh ss) lnm (LName lnm `notElem` nms)
           []     -> base
-
-idxNameErr :: String -> Names -> Ix -> String
-lvlNameErr :: String -> Names -> Lv -> String
-
-idxNameErr err nms (Ix i) = checkBounds err nms "index" i  i
-lvlNameErr err nms (Lv l) = checkBounds err nms "level" l (length nms - 1 - l)
 
 checkBounds :: String -> Names -> String -> Int -> Int -> String
 checkBounds err nms kind orig i =
@@ -58,33 +46,54 @@ checkBounds err nms kind orig i =
        (unLName (nms !! i))
        (i >= 0 && i < length nms)
 
+idxNameErr :: String -> Names -> Ix -> String
+lvlNameErr :: String -> Names -> Lv -> String
+
+idxNameErr err nms (Ix i) = checkBounds err nms "index" i  i
+lvlNameErr err nms (Lv l) = checkBounds err nms "level" l (length nms - 1 - l)
+
 idxNmT :: Names -> Ix -> String
-idxNmE :: Names -> Ix -> String
 lvlNmT :: Names -> Lv -> String
 
 idxNmT = idxNameErr "type"
-idxNmE = idxNameErr "term"
 lvlNmT = lvlNameErr "free neutral type"
-
-fmtKindAnn :: Maybe Kind -> String
-fmtKindAnn = maybe "" ((" ∷ " ++) . ppKind 0)
-
-fmtTypeAnn :: Names -> Maybe Type -> String
-fmtTypeAnn tNms = maybe "" ((" : " ++) . ppType tNms 0)
-
-fmtMap :: (Label -> a -> String) -> Map.Map Label a -> String
-fmtMap f = intercalate ", " . map (uncurry f) . Map.toList
-
-fmtBinOp :: Prec -> Prec -> String -> String -> String -> String
-fmtBinOp p opP sym e e' = parensIf (p > opP) $ e ++ " " ++ sym ++ " " ++ e'
 
 --------------------------------------------------------------------------------
 
-type BindsT      = [( String,  Kind)]
-type QuantGroups = [([String], Kind)]
+data PPEnv = PPEnv
+  { envTNms  :: Names,
+    envPrec  :: Prec ,
+    envDepth :: Int  }
 
-type Collected  a = (BindsT, Names, a)
-type Quantifier a = Maybe (Quant, Kind, LName, a)
+type PP = Reader PPEnv
+
+runPP :: PPEnv -> PP a -> a
+runPP = flip runReader
+
+withPrec :: Prec -> PP a -> PP a
+withPrec p = local (\e -> e { envPrec = p })
+
+withDepthUp :: PP a -> PP a
+withDepthUp = local (\e -> e { envDepth = envDepth e + 1 })
+
+withNm :: (PPEnv -> Names) -> (Names -> PPEnv -> PPEnv) -> String -> (String -> PP a) -> PP a
+withNm getN setN base f = asks getN >>= \nms -> let l = freshNm base nms in local (setN (LName l : nms)) (f l)
+
+withTNm :: String -> (String -> PP a) -> PP a
+withTNm = withNm envTNms (\ns e -> e { envTNms = ns })
+
+withBinder :: (String -> (String -> PP String) -> PP String) -> String -> (String -> PP String) -> PP String -> PP String
+withBinder withNmF base mkPrefixM bodyM = 
+  ask >>= \PPEnv{..} -> withNmF base $ \nm' -> 
+    (\pref body -> parensIf (envPrec > 0) (pref ++ body)) <$> mkPrefixM nm' <*> withPrec 0 bodyM
+
+--------------------------------------------------------------------------------
+
+type BindsT       = [( String , Kind)]
+type QuantGroups  = [([String], Kind)]
+
+type Collected  a =       (BindsT, Names,        a)
+type Quantifier a = Maybe (Quant , Kind , LName, a)
 
 data Quant
   = QForall
@@ -112,12 +121,12 @@ isQuantNf = \case
   _                                            -> Nothing
 
 collectQGen :: (a -> Quantifier a) -> Quant -> Names -> a -> Collected a
-collectQGen isQ q nms t = case isQ t of
-  Just (q', k, lnm, body) | q == q' ->
-    let lnm'                 = freshName (unLName lnm) nms
-        (binds, nms', inner) = collectQGen isQ q (LName lnm' : nms) body
-    in  ((lnm', k) : binds, nms', inner)
-  _                                 -> ([], nms, t)
+collectQGen isQ q tNms t = case isQ t of
+  Just (q', k, LName l, body) | q == q' ->
+    let lnm'                  = freshNm l tNms
+        (binds, tNms', inner) = collectQGen isQ q (LName lnm' : tNms) body
+    in  ((lnm', k) : binds, tNms', inner)
+  _                                     -> ([], tNms, t)
 
 collectQ   :: Quant -> Names -> Type -> Collected Type
 collectQNf :: Quant -> Names -> NfT  -> Collected NfT
@@ -132,18 +141,40 @@ groupBinds = foldr groupStep []
           (ns, k') : rest | k == k'   -> (  n : ns, k)            : rest
                           | otherwise -> ( [n]    , k) : (ns, k') : rest
 
-fmtQuantGroups :: QuantGroups -> String
-fmtQuantGroups = \case
-  [g] -> fmtGroup g
-  gs  -> unwords [ "(" ++ fmtGroup g ++ ")" | g <- gs ]
-  where fmtGroup (ns, k) = unwords ns ++ " ∷ " ++ ppKind 0 k
+--------------------------------------------------------------------------------
 
-fmtQuant :: Prec -> Quant -> BindsT -> String -> String
-fmtQuant p q binds inner = parensIf (p > 0) $ sym q ++ fmtQuantGroups (groupBinds binds) ++ ". " ++ inner
+fmtPrefixM, fmtPostfixM, fmtAppM :: Prec -> PP String -> PP String -> PP String
+fmtBinOpM                        :: Prec -> String    -> PP String -> PP String -> PP String
+
+fmtPrefixM  appP mPre m    = ask >>= \PPEnv{..} -> parensIf (envPrec > appP) <$> ((++)                                     <$> mPre <*> m   )
+fmtPostfixM appP mSuf m    = ask >>= \PPEnv{..} -> parensIf (envPrec > appP) <$> ((++)                                     <$> m    <*> mSuf)
+fmtAppM     appP      m m' = ask >>= \PPEnv{..} -> parensIf (envPrec > appP) <$> ((\s s' -> s ++ " "                ++ s') <$> m    <*> m'  )
+fmtBinOpM   opP  sym  m m' = ask >>= \PPEnv{..} -> parensIf (envPrec > opP ) <$> ((\s s' -> s ++ " "  ++ sym ++ " " ++ s') <$> m    <*> m'  )
+
+fmtBindM :: String -> PP String -> String -> PP String
+fmtBindM pre mSuf n = (\suf -> pre ++ n ++ suf) <$> mSuf
+
+fmtXLetM :: PP String -> PP String -> PP String
+fmtXLetM mBnd mBdy = ask >>= \PPEnv{..} -> (\bnd bdy -> parensIf (envPrec > 0) $ cDepth envDepth "let " ++ bnd ++ cDepth envDepth " in " ++ bdy) <$> mBnd <*> mBdy
+
+fmtKindAnnM :: Maybe Kind -> PP String
+fmtKindAnnM = maybe (pure "") (\k -> (" ∷ " ++) <$> withPrec 0 (ppKindM k))
+
+fmtQuantGroupsM :: QuantGroups -> PP String
+fmtQuantGroupsM = \case
+  [g] -> fmtGroupM g
+  gs  -> unwords . map (\x -> "(" ++ x ++ ")")         <$> traverse fmtGroupM gs
+  where fmtGroupM (ns, k) = ((unwords ns ++ " ∷ ") ++) <$> withPrec 0 (ppKindM k)
+
+fmtQuantM :: Quant -> BindsT -> PP String -> PP String
+fmtQuantM q binds innerM = do
+  p         <- asks envPrec
+  groupsStr <- fmtQuantGroupsM (groupBinds binds)
+  parensIf (p > 0) . (\inr -> sym q ++ groupsStr ++ ". " ++ inr) <$> innerM
   where sym = \case { QForall -> "∀ "; QExists -> "∃ " }
 
-fmtFields :: (a -> String) -> Labels -> [a] -> String
-fmtFields pp ls args = intercalate ", " $ zipWith (\l a -> unLabel l ++ " : " ++ pp a) ls args
+fmtFieldsM :: Labels -> [PP String] -> PP String
+fmtFieldsM ls argsM = sequence argsM >>= \args -> pure $ intercalate ", " $ zipWith (\l a -> unLabel l ++ " : " ++ a) ls args
 
 collectArgs :: Type -> (Type, [Type])
 collectArgs = collect []
@@ -161,103 +192,99 @@ collectArgsNeuNf = collect []
 --------------------------------------------------------------------------------
 
 ppKind :: Prec -> Kind -> String
-ppKind p = \case
-  KStar        -> "*"
-  KArr dom cod -> parensIf (p > precArr) $ ppKind (precArr + 1) dom ++ " → " ++ ppKind precArr cod
+ppKind p k = runPP (PPEnv [] p 0) (ppKindM k)
+
+ppKindM :: Kind -> PP String
+ppKindM = \case
+  KStar        -> pure "*"
+  KArr dom cod -> fmtBinOpM precArr "→" (withPrec (precArr + 1) (ppKindM dom)) (withPrec precArr (ppKindM cod))
 
 --------------------------------------------------------------------------------
 
-ppConstT :: ConstT -> String
-ppConstT = \case
-  TInt         -> "Int"
-  TDouble      -> "Double"
-  TString      -> "String"
-  TArr         -> "(→)"
-  TIO          -> "IO"
+ppConstTM :: ConstT -> PP String
+ppConstTM = \case
+  TInt         -> pure "Int"
+  TDouble      -> pure "Double"
+  TString      -> pure "String"
+  TArr         -> pure "(→)"
+  TIO          -> pure "IO"
   
-  TForall   k  -> "∀["  ++ ppKind 0 k ++ "]" -- TODO
-  TExists   k  -> "∃["  ++ ppKind 0 k ++ "]"
+  TForall   k  -> ("∀[" ++) . (++ "]") <$> withPrec 0 (ppKindM k)
+  TExists   k  -> ("∃[" ++) . (++ "]") <$> withPrec 0 (ppKindM k)
   
-  TRecordC  ls -> "{" ++ joinLbls ls ++ "}"
-  TVariantC ls -> "⟨" ++ joinLbls ls ++ "⟩"
-  where joinLbls = intercalate ", " . map unLabel
+  TRecordC  ls -> pure $ "{" ++ intercalate ", " (map unLabel ls) ++ "}"
+  TVariantC ls -> pure $ "⟨" ++ intercalate ", " (map unLabel ls) ++ "⟩"
 
-binOpInfoT :: ConstT -> Maybe (String, Prec, Assoc)
-binOpInfoT = \case
-  TArr  -> Just ("→", precArr, RightAssoc)
-  _     -> Nothing
+binOpInfoT :: ConstT -> Maybe (Prec, Prec, Prec, String)
+binOpInfoT = \case { TArr -> Just (precArr, precArr + 1, precArr, "→"); _ -> Nothing }
 
-isBinOp      :: Type   -> Maybe (String, Prec, Assoc)
-isBinOpNeuNf :: NeuNfT -> Maybe (String, Prec, Assoc)
+isBinOp      :: Type   -> Maybe (Prec, Prec, Prec, String)
+isBinOpNeuNf :: NeuNfT -> Maybe (Prec, Prec, Prec, String)
 
 isBinOp      t =  case unLoc t of { TConst     c -> binOpInfoT c; _ -> Nothing }
 isBinOpNeuNf   = \case            { NfNeuConst c -> binOpInfoT c; _ -> Nothing }
 
 ppType :: Names -> Prec -> Type -> String
-ppType tNms p t = case collectArgs t of
-  (TConst (TRecordC  ls), args) | length ls == length args -> "{" ++ fmtFields (pp 0) ls args ++ "}"
-  (TConst (TVariantC ls), args) | length ls == length args -> "⟨" ++ fmtFields (pp 0) ls args ++ "⟩"
-  _                                                        -> case t of
-    TLoc    _    t'           -> pp p t'
-    
-    _ | Just (q, k, lnm, body) <- isQuant t ->
-        let lnm'                  = freshL lnm
-            (binds, tNms', inner) = collectQ q (LName lnm' : tNms) body
-        in  fmtQuant p q ((lnm', k) : binds) (ppType tNms' 0 inner)
+ppType tNms p t = runPP (PPEnv tNms p 0) (ppTypeM t)
 
-    TVar    i                 -> idxNmT tNms i
-    TGlobal gnm               -> unGName gnm
-    TConst  c                 -> ppConstT c
+ppTypeM :: Type -> PP String
+ppTypeM t = ask >>= \PPEnv{..} -> case collectArgs t of
+  (TConst (TRecordC  ls), args) | length ls == length args -> ("{" ++) . (++ "}") <$> fmtFieldsM ls (map (withPrec 0 . ppTypeM) args)
+  (TConst (TVariantC ls), args) | length ls == length args -> ("⟨" ++) . (++ "⟩") <$> fmtFieldsM ls (map (withPrec 0 . ppTypeM) args)
+  _                                                        -> case t of
+    TLoc    _    t'           -> ppTypeM t'
     
-    TLam    lnm  mk      tBdy -> let lnm' = freshL lnm in parens 0 $ "λ" ++ lnm' ++ fmtKindAnn mk ++ ". " ++ ppBody lnm' tBdy
-    TMu     t'                -> parens precApp $ "μ "  ++ pp (precApp + 1) t'
-    TMu'    t'                -> parens precApp $ "μ′ " ++ pp (precApp + 1) t'
+    _ | Just (q, _, _, _) <- isQuant t ->
+        let (binds, tNms', inner) = collectQ q envTNms t in
+        fmtQuantM q binds (local (\e -> e { envTNms = tNms', envPrec = 0 }) (ppTypeM inner))
+
+    TVar    i                 -> pure     (idxNmT envTNms i)
+    TGlobal gnm               -> pure     (unGName gnm)
+    TConst  c                 -> ppConstTM c
     
-    TApp    (TApp op t') t''  | Just (sym, opP, assoc) <- isBinOp op ->
-        let (p', p'') = binOpAssoc opP assoc
-        in  fmtBinOp p opP sym (pp p' t') (pp p'' t'')
+    TLam    (LName l) mk tBdy -> withBinder withTNm l (fmtBindM "λ " ((++ ". ") <$> fmtKindAnnM mk)) (ppTypeM tBdy)
+    TMu     t'                -> fmtPrefixM precApp   (pure     "μ " )       (withPrec (precApp + 1) (ppTypeM t' ))
+    TMu'    t'                -> fmtPrefixM precApp   (pure     "μ′ ")       (withPrec (precApp + 1) (ppTypeM t' ))
+    
+    TApp    (TApp op ty) ty' | Just (opP, p', p'', sym) <- isBinOp op
+                              -> fmtBinOpM opP sym (withPrec p'      (ppTypeM ty)) (withPrec  p''          (ppTypeM ty'))
         
-    TApp    t'            t'' -> parens precApp $ pp precApp t' ++ " " ++ pp (precApp + 1) t''
-  where pp         = ppType tNms
-        ppBody lT  = ppType (LName lT : tNms) 0
-        freshL lnm = freshName (unLName lnm) tNms
-        parens pr  = parensIf (p > pr)
+    TApp    t'            t'' -> fmtAppM precApp   (withPrec precApp (ppTypeM t')) (withPrec (precApp + 1) (ppTypeM t''))
 
 --------------------------------------------------------------------------------
 
 ppNfT :: Names -> Prec -> NfT -> String
-ppNfT tNms p nf = maybe ppBase ppQ (isQuantNf nf)
-  where ppBase = case nf of
-          NfNeu         ne   -> ppNeuNfT tNms p ne
-          NfLam  lnm mk body -> let lnm' = freshL lnm in parens 0 $ "λ" ++ lnm' ++ fmtKindAnn mk ++ ". " ++ ppBody lnm' body
-        ppQ (q, k, lnm, body) =
-          let lnm'                  = freshL lnm
-              (binds, tNms', inner) = collectQNf q (LName lnm' : tNms) body
-          in  fmtQuant p q ((lnm', k) : binds) (ppNfT tNms' 0 inner)
-        freshL lnm = freshName (unLName lnm) tNms
-        ppBody lT  = ppNfT (LName lT : tNms) 0
-        parens pr  = parensIf (p > pr)
+ppNfT tNms p nf = runPP (PPEnv tNms p 0) (ppNfTM nf)
+
+ppNfTM :: NfT -> PP String
+ppNfTM nf = ask >>= \PPEnv{..} -> case nf of
+  _ | Just (q, _, _, _) <- isQuantNf nf -> 
+        let (binds, tNms', inner) = collectQNf q envTNms nf in
+        fmtQuantM q binds (local (\e -> e { envTNms = tNms', envPrec = 0 }) (ppNfTM inner))
+        
+  NfNeu               ne                -> ppNeuNfTM ne
+  NfLam  (LName l) mk body              -> withBinder withTNm l (fmtBindM "λ " ((++ ". ") <$> fmtKindAnnM mk)) (ppNfTM body)
 
 ppNeuNfT :: Names -> Prec -> NeuNfT -> String
-ppNeuNfT tNms p nf = case collectArgsNeuNf nf of
-  (NfNeuConst (TRecordC  ls), args) | length ls == length args -> "{" ++ fmtFields (pp 0) ls args ++ "}"
-  (NfNeuConst (TVariantC ls), args) | length ls == length args -> "⟨" ++ fmtFields (pp 0) ls args ++ "⟩"
-  _                                                            -> case nf of
-    NfNeuBVar   i      -> idxNmT tNms i
-    NfNeuFVar   l      -> lvlNmT tNms l
-    NfNeuGlobal gnm    -> unGName gnm
-    NfNeuConst  c      -> ppConstT c
+ppNeuNfT tNms p nf = runPP (PPEnv tNms p 0) (ppNeuNfTM nf)
+
+ppNeuNfTM :: NeuNfT -> PP String
+ppNeuNfTM ne = ask >>= \PPEnv{..} -> case collectArgsNeuNf ne of
+  (NfNeuConst (TRecordC  ls), args) | length ls == length args -> ("{" ++) . (++ "}") <$> fmtFieldsM ls (map (withPrec 0 . ppNfTM) args)
+  (NfNeuConst (TVariantC ls), args) | length ls == length args -> ("⟨" ++) . (++ "⟩") <$> fmtFieldsM ls (map (withPrec 0 . ppNfTM) args)
+  _                                                            -> case ne of
+    NfNeuBVar   i             -> pure     (idxNmT envTNms i)
+    NfNeuFVar   l             -> pure     (lvlNmT envTNms l)
+    NfNeuGlobal gnm           -> pure     (unGName gnm)
+    NfNeuConst  c             -> ppConstTM c
     
-    NfNeuMu     nfBody -> parens precApp $ "μ "  ++ pp (precApp + 1) nfBody
-    NfNeuMu'    nfBody -> parens precApp $ "μ′ " ++ pp (precApp + 1) nfBody
+    NfNeuMu     nfBody        -> fmtPrefixM precApp (pure "μ " )  (withPrec (precApp + 1) (ppNfTM nfBody))
+    NfNeuMu'    nfBody        -> fmtPrefixM precApp (pure "μ′ ")  (withPrec (precApp + 1) (ppNfTM nfBody))
     
-    NfNeuApp    (NfNeuApp op nf') nf'' | Just (sym, opP, assoc) <- isBinOpNeuNf op ->
-        let (p', p'') = binOpAssoc opP assoc
-        in  fmtBinOp p opP sym (pp p' nf') (pp p'' nf'')
+    NfNeuApp    (NfNeuApp op nf') nf'' | Just (opP, p', p'', sym) <- isBinOpNeuNf op
+                              -> fmtBinOpM opP sym (withPrec p'         (ppNfTM nf')) (withPrec  p''          (ppNfTM nf''))
         
-    NfNeuApp    nf' nf'' -> parens precApp $ ppNeuNfT tNms precApp nf' ++ " " ++ pp (precApp + 1) nf''
-  where pp        = ppNfT tNms
-        parens pr = parensIf (p > pr)
+    NfNeuApp    nf' nf''      -> fmtAppM precApp   (withPrec precApp (ppNeuNfTM nf')) (withPrec (precApp + 1) (ppNfTM nf''))
 
 --------------------------------------------------------------------------------
 
@@ -304,85 +331,38 @@ binOpInfo = \case
   ESubD     -> Just (6, 6, 7, "-.")
   _         -> Nothing
 
-ppExp :: Names -> Names -> Prec -> Exp -> String
-ppExp tNms eNms p = \case
-  ELoc    _   e                  -> pp p e
-  EVar    i                      -> idxNmE eNms i
-  EGlobal gnm                    -> unGName gnm
-  EConst  c                      -> ppConstE c
-  
-  EInt    n                      -> show n
-  EDouble d                      -> show d
-  EString s                      -> show (T.unpack s)
-  
-  EAnn    e   t                  -> parens 0 $ pp 0 e ++ " : " ++ ppT 0 t
-  
-  ELam    lnm mTy  eBdy          -> let lnm' = freshE lnm in parens 0 $ "λ" ++ lnm' ++ fmtTypeAnn tNms mTy ++ ". " ++ ppBodyE lnm' eBdy
-  ETLam   lnm mk   eBdy          -> let lnm' = freshT lnm in parens 0 $ "Λ" ++ lnm' ++ fmtKindAnn mk ++ ". " ++ ppBodyT lnm' eBdy
-  
-  ELet    lnm mTy  e    e'       -> let lnm' = freshE lnm in parens 0 $ "let " ++ lnm' ++ fmtTypeAnn tNms mTy ++ " = " ++ pp 0 e ++ " in " ++ ppBodyE lnm' e'
-  
-  EApp    (EApp (EConst c) e) e' | Just (opP, p', p'', sym) <- binOpInfo c -> fmtBinOp p opP sym (pp p' e) (pp p'' e')
-  
-  EApp    e   e'                 -> parens precAppExp $ pp precAppExp e ++ " "  ++ pp (precAppExp + 1) e'
-  ETApp   e   t                  -> parens precTApp   $ pp precTApp   e ++ " [" ++ ppT 0 t ++ "]"
-    
-  ERecord flds                   -> "{" ++ fmtMap (\lbl e' -> unLabel lbl ++ " = " ++ pp 0 e') flds ++ "}"
-  EVariant lbl e                 -> "⟨" ++ unLabel lbl ++ " = " ++ pp 0 e ++ "⟩"
-  
-  EProj   e   lbl                -> parens precTApp   $ pp precTApp e ++ "." ++ unLabel lbl
-  EMatch  e   brs                -> parens precAppExp $ pp (precAppExp + 1) e ++ " ? ⟨" ++ fmtMap (\lbl (lnm, e') -> unLabel lbl ++ " " ++ unLName lnm ++ " ↦ " ++ ppBodyE (unLName lnm) e') brs ++ "⟩"
-    
-  EPack   t   e                  -> parens precAppExp $ "pack ["   ++ ppT 0 t ++ "] " ++ pp (precAppExp + 1) e
-  ERoll   t   e                  -> parens precAppExp $ "roll ["   ++ ppT 0 t ++ "] " ++ pp (precAppExp + 1) e
-  EUnpack e   lnmT lnmE eBdy     -> let lnmT' = freshT lnmT; lnmE' = freshE lnmE in parens 0 $ "unpack " ++ pp 0 e ++ " as ⟨" ++ lnmT' ++ ", " ++ lnmE' ++ "⟩ in " ++ ppBody lnmT' lnmE' eBdy
-  EUnroll e                      -> parens precAppExp $ "unroll "  ++ pp (precAppExp + 1) e
-
-  EFix    e                      -> parens precAppExp $ "fix "     ++ pp (precAppExp + 1) e
-  EReturn e                      -> parens precAppExp $ "return "  ++ pp (precAppExp + 1) e
-  EBind   e   e'                 -> parens precBind   $ pp precBind e ++ " >>= " ++ pp (precBind + 1) e'
-                              
-  EHole   hnm me                 -> "?" ++ unHName hnm ++ maybe "" (("{" ++) . (++ "}") . pp 0) me
-  where pp            = ppExp  tNms eNms 
-        ppT           = ppType tNms
-        ppBodyE    lE = ppExp  tNms             (LName lE : eNms) 0
-        ppBodyT lT    = ppExp (LName lT : tNms)             eNms  0
-        ppBody  lT lE = ppExp (LName lT : tNms) (LName lE : eNms) 0
-        freshE  lnm   = freshName (unLName lnm) eNms
-        freshT  lnm   = freshName (unLName lnm) tNms
-        parens  pr    = parensIf (p > pr)
-
 --------------------------------------------------------------------------------
 
-ppErased :: Prec -> Erased -> String
-ppErased p = \case
-  XVar     i                      -> "#" ++ show i
-  XGlobal  gnm                    -> unGName gnm
-  XConst   c                      -> ppConstE c
-  
-  XInt     n                      -> show n
-  XDouble  d                      -> show d
-  XString  s                      -> show (T.unpack s)
-  
-  XLam     e                      -> parens 0          $ "λ. " ++ pp 0 e
+ppErased :: Prec -> Int -> Erased -> String
+ppErased p d e = runPP (PPEnv [] p d) (ppErasedM e)
 
-  XApp     (XApp (XConst c) e) e' | Just (opP, p', p'', sym) <- binOpInfo c -> fmtBinOp p opP sym (pp p' e) (pp p'' e')
+ppErasedM :: Erased -> PP String
+ppErasedM er = ask >>= \PPEnv{..} -> case er of
+  XVar     i                      -> pure $ bool ("\ESC[36m#" ++ show (unIx i) ++ "\ESC[0m") (cDepth (envDepth - 1 - unIx i) ("#" ++ show (unIx i))) (unIx i < envDepth)
+  XGlobal  gnm                    -> pure (unGName gnm)
+  XConst   c                      -> pure (ppConstE c)
   
-  XApp     e   e'                 -> parens precAppExp $ pp precAppExp e ++ " " ++ pp (precAppExp + 1) e'
+  XInt     n                      -> pure (show n)
+  XDouble  d                      -> pure (show d)
+  XString  s                      -> pure (show (T.unpack s))
   
-  XLet     e   e'                 -> parens 0          $ "let " ++ pp 0 e ++ " in " ++ pp 0 e'
+  XLam     e                      -> fmtPrefixM  0 (pure (cDepth envDepth "λ. ")) (withPrec 0 (withDepthUp (ppErasedM e)))
+
+  XApp     (XApp (XConst c) e) e' | Just (opP, p', p'', sym) <- binOpInfo c
+                                  -> fmtBinOpM opP sym (withPrec p' (ppErasedM e)) (withPrec p'' (ppErasedM e'))
   
-  XRecord  flds                   -> "{" ++ fmtMap (\lbl e' -> unLabel lbl ++ " = " ++ pp 0 e') flds ++ "}"
-  XVariant lbl e                  -> "⟨" ++ unLabel lbl ++ " = " ++ pp 0 e ++ "⟩"
+  XApp     e   e'                 -> fmtAppM     precAppExp     (withPrec precAppExp (ppErasedM e   )) (withPrec   (precAppExp + 1) (ppErasedM e'   ))
+  XLet     eBnd eBdy              -> fmtXLetM                   (withPrec 0          (ppErasedM eBnd)) (withPrec 0 (withDepthUp     (ppErasedM eBdy)))
   
-  XProj    e   lbl                -> parens precTApp   $ pp  precTApp e ++ "." ++ unLabel lbl
-  XMatch   e   brs                -> parens precAppExp $ pp (precAppExp + 1) e ++ " ? ⟨" ++ fmtMap (\lbl e' -> unLabel lbl ++ " ↦ " ++ pp 0 e') brs ++ "⟩"
+  XRecord  flds                   -> ("{" ++) . (++ "}") . intercalate ", " <$> mapM (uncurry (\lbl -> fmap ((++) (unLabel lbl ++ " = ")) . withPrec 0 . ppErasedM)) (Map.toList flds)
+  XVariant lbl e                  -> ((++ "⟩") . (++) ("⟨" ++ unLabel lbl ++ " = ")) <$> withPrec 0 (ppErasedM e)
   
-  XFix     e                      -> parens precAppExp $ "fix "    ++ pp (precAppExp + 1) e
-  XReturn  e                      -> parens precAppExp $ "return " ++ pp (precAppExp + 1) e
-  XBind    e   e'                 -> parens precBind   $              pp  precBind e ++ " >>= " ++ pp (precBind + 1) e'
-  where pp        = ppErased
-        parens pr = parensIf (p > pr)
+  XProj    e   lbl                -> fmtPostfixM precTApp (pure ("." ++ unLabel lbl)) (withPrec precTApp (ppErasedM e))
+  XMatch   e   brs                -> (\eStr brStrs -> parensIf (envPrec > precAppExp) (eStr ++ " ? ⟨" ++ intercalate ", " brStrs ++ "⟩")) <$> withPrec (precAppExp + 1) (ppErasedM e) <*> mapM (uncurry (\lbl -> fmap ((++) (unLabel lbl ++ " ↦ ")) . withPrec 0 . ppErasedM)) (Map.toList brs)
+  
+  XFix     e                      -> fmtPrefixM  precAppExp     (pure (cDepth envDepth "fix "))   (withPrec (precAppExp + 1) (ppErasedM e ))
+  XReturn  e                      -> fmtPrefixM  precAppExp     (pure               "return ")    (withPrec (precAppExp + 1) (ppErasedM e ))
+  XBind    e   e'                 -> fmtBinOpM   precBind ">>=" (withPrec precBind (ppErasedM e)) (withPrec (precBind   + 1) (ppErasedM e'))
 
 --------------------------------------------------------------------------------
 
@@ -390,17 +370,17 @@ ppView :: View -> String
 ppView = \case
   VwOmitted             -> "…"
   VwEvaluating          -> "<~ … >"
-  VwUneval      e       -> "<~ " ++ ppErased 0 e ++ ">"
+  VwUneval      e       -> "<~ " ++ ppErased 0 0 e ++ ">"
   
   VwInt         n       -> show  n
   VwDouble      x       -> show  x
   VwString      s       -> show (T.unpack s)
   
-  VwClosure     e env   -> "<λ. " ++ ppErased 0 e ++ bool (" | [" ++ intercalate ", " (map ppView env) ++ "]") "" (null env) ++ ">"
-  VwPartial     c as    -> "<"    ++ unwords (ppConstE c : map ppView as) ++ ">"
+  VwClosure     e env   -> "<" ++ cDepth 0 "λ. " ++ ppErased 0 1 e ++ bool (" | [" ++ intercalate ", " (map ppView env) ++ "]") "" (null env) ++ ">"
+  VwPartial     c as    -> "<" ++ unwords (ppConstE c : map ppView as)                                                                        ++ ">"
                                  
-  VwRecord      flds    -> "{"    ++ intercalate ", " (map (\(lbl, sn) -> unLabel lbl ++ " = " ++ ppView sn) flds) ++ "}"
-  VwVariant     lbl sn  -> "⟨"    ++ unLabel lbl ++ " = " ++ ppView sn ++ "⟩"
+  VwRecord      flds    -> "{" ++ intercalate ", " (map (\(lbl, sn) -> unLabel lbl ++ " = " ++ ppView sn) flds) ++ "}"
+  VwVariant     lbl sn  -> "⟨" ++ unLabel lbl                                      ++ " = " ++ ppView sn        ++ "⟩"
      
   VwIOReturn    sn      -> "return "             ++ ppView sn
   VwIOBind      snL snK -> ppView snL ++ " >>= " ++ ppView snK
