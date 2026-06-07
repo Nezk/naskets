@@ -410,7 +410,7 @@ takeView forceM d = \case
         viewTh depth (Thunk ref)
            | depth <= 0 = return VwOmitted
            | otherwise  = readIORef ref >>= \case
-               Evaluated   v            -> takeView forceM depth v
+               Evaluated   v            -> takeView forceM (depth - 1) v
                Evaluating               -> return VwEvaluating
                Unevaluated e env
                  | XVar (Ix i) <- e, i >= 0 && i < length env -> viewTh (depth - 1) (env !! i)

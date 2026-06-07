@@ -489,12 +489,12 @@ check e vtyExp = case e of
   EHole hnm me -> reportHole hnm me (Just vtyExp)
 
   e' -> infer e' >>= \v -> assertEquiv v vtyExp (`errMismatch` v)
-  where errLamAnn                  ctx  v tdom = "Type annotation on lambda (" ++ ppClosed ctx v ++ ") does not match expected domain type (" ++ ppClosed ctx tdom ++ ")"
+  where errLamAnn                  ctx  v tdom = "Type annotation on lambda (" ++ ppClosed ctx v      ++ ") does not match expected domain type ("         ++ ppClosed ctx tdom ++ ")"
         errTyLamAnn                kAnn k      = "Kind mismatch in type abstraction: annotated kind " ++ ppKind 0 kAnn ++ " does not match expected kind " ++ ppKind 0 k
         errRecordLabelsMismatch                = "Record fields do not match vtyExp type labels."
-        errVariantLabelMissing     lbl         = "Variant label " ++ unLabel lbl ++ " not found in vtyExp type."
+        errVariantLabelMissing     lbl         = "Variant label "              ++ unLabel lbl         ++ " not found in vtyExp type."
         errMatchLabels                         = "Pattern match branches do not match variant labels."
-        errMismatch                ctx  v      = "Type mismatch: expected " ++ ppClosed ctx vtyExp ++ " but got " ++ ppClosed ctx v
+        errMismatch                ctx  v      = "Type mismatch: expected "    ++ ppClosed ctx vtyExp ++ " but got "   ++ ppClosed ctx v
 
 vArr :: ValT -> ValT -> ValT
 vIO  :: ValT         -> ValT
@@ -551,4 +551,4 @@ checkProgram (Program decls) =
   runWriter $ runExceptT $ foldM step emptyCtx decls 
   where step       ctx d     = let (res, r) = checkDecl ctx d in tell r *> either (throwError . declErrMsg d) return res
         declErrMsg     d err = "Error in declaration " ++ declName d ++ ":\n" ++ err
-          where declName     = \case { DLoc _ d' -> declName d'; DeclType (GName n) _ _ -> n; DeclFun (GName n) _ _ -> n; DeclExc _ -> ">> evaluation"; DeclEvalT _ -> "⊢ evaluation" }
+          where declName     = \case { DLoc _ d' -> declName d'; DeclType (GName n) _ _ -> n; DeclFun (GName n) _ _ -> n; DeclExc _ -> "» evaluation"; DeclEvalT _ -> "⊢ evaluation" }
