@@ -167,6 +167,8 @@ inferK = \case
   TApp ty ty' -> do
     k <- inferK ty
     case k of { KArr kArg kRes -> checkK ty' kArg >> return kRes; _ -> throwErr errTAppMismatch }
+
+  TLet lnm mk tyB tyBody -> letT lnm mk tyB (inferK tyBody)
       
   TMu  ty -> checkK ty (KArr KStar KStar) >> return KStar
   TMu' ty -> inferK ty >>= \case { KArr kArg kRes | kArg == kRes -> return kArg; _ -> throwErr errTMuIsoMismatch }
@@ -198,10 +200,15 @@ checkK ty kexp = case (ty, kexp) of
     forM_         mk   $ \kAnn -> when (kAnn /= kDom) $ throwErr (errKAnn kAnn kDom)
     withBindT lnm kDom $ checkK tyBody kCod
   (TLam{},                           _) -> throwErr (errKLam kexp)
+  (TLet lnm mk tyB tyBody,           _) -> letT lnm mk tyB (checkK tyBody kexp)
   _                                     -> inferK ty >>= \k -> when (k /= kexp) $ throwErr (errKMismatch k kexp)
   where errKAnn      kAnn kDom = "Kind mismatch in type lambda. " ++ ppKind 0 kAnn ++ " does not match expected kind " ++ ppKind 0 kDom
         errKLam      k         = "Expected kind "                 ++ ppKind 0 k    ++ " for type-level lambda, but type-level lambda requires an arrow kind."
         errKMismatch k    kex  = "Kind mismatch. Expected "       ++ ppKind 0 kex  ++ " but got "                      ++ ppKind 0 k
+
+letT :: LName -> Maybe Kind -> Type -> TC a -> TC a
+letT lnm mk tyB cont = inferK tyB >>= \k -> forM_ mk (\kAnn -> when (kAnn /= k) $ throwErr (errKLetAnn kAnn k)) >> withBindT lnm k cont
+  where errKLetAnn kAnn kIn = "Kind mismatch in type let. " ++ ppKind 0 kAnn ++ " does not match inferred kind " ++ ppKind 0 kIn
 
 --------------------------------------------------------------------------------
 
@@ -534,6 +541,8 @@ checkDecl ctx decl = runTC ctx (checkD decl)
             
           DeclExc e -> infer e >> asks (\c -> c { ctxPos = Nothing })
           
+          DeclEvalT ty -> inferK ty >> asks (\c -> c { ctxPos = Nothing })
+          
         guardFresh gnm sel kind = asks sel >>= \dict ->
           when (Map.member gnm dict) $ throwErr $ "Duplicate " ++ kind ++ " definition: " ++ unGName gnm
      
@@ -542,4 +551,4 @@ checkProgram (Program decls) =
   runWriter $ runExceptT $ foldM step emptyCtx decls 
   where step       ctx d     = let (res, r) = checkDecl ctx d in tell r *> either (throwError . declErrMsg d) return res
         declErrMsg     d err = "Error in declaration " ++ declName d ++ ":\n" ++ err
-          where declName     = \case { DLoc _ d' -> declName d'; DeclType (GName n) _ _ -> n; DeclFun (GName n) _ _ -> n; DeclExc _ -> ">> evaluation" }
+          where declName     = \case { DLoc _ d' -> declName d'; DeclType (GName n) _ _ -> n; DeclFun (GName n) _ _ -> n; DeclExc _ -> ">> evaluation"; DeclEvalT _ -> "⊢ evaluation" }

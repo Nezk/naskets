@@ -9,13 +9,14 @@ import Utils
 
 evalT :: GTypes -> EnvT -> Type -> ValT
 evalT glbT envT = \case
-  TVar    (Ix i)      -> envT     !!  i
+  TVar       (Ix i)   -> envT     !!  i
   TGlobal     gnm     -> VAlias   gnm   Emp (lookupOrErr gnm glbT $ "Unknown global type: " ++ unGName gnm)
   TConst      c       -> VNeu          (NeuConst      c)
   TLam    lnm mk body -> VClosure lnm mk body envT
-  TApp        ty ty'  -> appT     glbT (evalT glbT envT ty) (evalT glbT envT ty')
+  TApp        ty ty'  -> appT     glbT (evalT glbT envT ty)       (evalT glbT envT ty')
+  TLet    _ _ ty b    -> evalT    glbT (evalT glbT envT ty : envT) b
   TMu         ty      -> VMu           (evalT glbT envT ty)    
-  TMu'        ty      -> VNeu          (NeuMu'              (evalT glbT envT ty))
+  TMu'        ty      -> VNeu          (NeuMu'                    (evalT glbT envT ty))
   TLoc    _   ty      -> evalT    glbT             envT ty
 
 appT :: GTypes -> ValT -> ValT -> ValT

@@ -154,6 +154,9 @@ fmtBinOpM   opP  sym  m m' = ask >>= \PPEnv{..} -> parensIf (envPrec > opP ) <$>
 fmtBindM :: String -> PP String -> String -> PP String
 fmtBindM pre mSuf n = (\suf -> pre ++ n ++ suf) <$> mSuf
 
+fmtLetBindM :: PP String -> PP String -> String -> PP String
+fmtLetBindM mTyAnn mBnd n = (\tyA bnd -> "let " ++ n ++ tyA ++ " = " ++ bnd ++ " in ") <$> mTyAnn <*> mBnd
+
 fmtXLetM :: PP String -> PP String -> PP String
 fmtXLetM mBnd mBdy = ask >>= \PPEnv{..} -> (\bnd bdy -> parensIf (envPrec > 0) $ cDepth envDepth "let " ++ bnd ++ cDepth envDepth " in " ++ bdy) <$> mBnd <*> mBdy
 
@@ -238,18 +241,19 @@ ppTypeM t = ask >>= \PPEnv{..} -> case collectArgs t of
         let (binds, tNms', inner) = collectQ q envTNms t in
         fmtQuantM q binds (local (\e -> e { envTNms = tNms', envPrec = 0 }) (ppTypeM inner))
 
-    TVar    i                 -> pure     (idxNmT envTNms i)
-    TGlobal gnm               -> pure     (unGName gnm)
-    TConst  c                 -> ppConstTM c
+    TVar    i                    -> pure     (idxNmT envTNms i)
+    TGlobal gnm                  -> pure     (unGName gnm)
+    TConst  c                    -> ppConstTM c
     
-    TLam    (LName l) mk tBdy -> withBinder withTNm l (fmtBindM "λ " ((++ ". ") <$> fmtKindAnnM mk)) (ppTypeM tBdy)
-    TMu     t'                -> fmtPrefixM precApp   (pure     "μ " )       (withPrec (precApp + 1) (ppTypeM t' ))
-    TMu'    t'                -> fmtPrefixM precApp   (pure     "μ′ ")       (withPrec (precApp + 1) (ppTypeM t' ))
+    TLam    (LName l) mk    tBdy -> withBinder withTNm l (fmtBindM "λ " ((++ ". ") <$> fmtKindAnnM mk)) (ppTypeM tBdy)
+    TLet    (LName l) mk ty tBdy -> withBinder withTNm l (fmtLetBindM (fmtKindAnnM mk) (withPrec 0 (ppTypeM ty))) (ppTypeM tBdy)
+    TMu     t'                   -> fmtPrefixM precApp   (pure     "μ "              ) (withPrec   (precApp  + 1) (ppTypeM t' ))
+    TMu'    t'                   -> fmtPrefixM precApp   (pure     "μ′ "             ) (withPrec   (precApp  + 1) (ppTypeM t' ))
     
     TApp    (TApp op ty) ty' | Just (opP, p', p'', sym) <- isBinOp op
-                              -> fmtBinOpM opP sym (withPrec p'      (ppTypeM ty)) (withPrec  p''          (ppTypeM ty'))
+                                 -> fmtBinOpM opP sym (withPrec p'      (ppTypeM ty)) (withPrec  p''          (ppTypeM ty'))
         
-    TApp    t'            t'' -> fmtAppM precApp   (withPrec precApp (ppTypeM t')) (withPrec (precApp + 1) (ppTypeM t''))
+    TApp    t'            t''    -> fmtAppM precApp   (withPrec precApp (ppTypeM t')) (withPrec (precApp + 1) (ppTypeM t''))
 
 --------------------------------------------------------------------------------
 
@@ -282,7 +286,7 @@ ppNeuNfTM ne = ask >>= \PPEnv{..} -> case collectArgsNeuNf ne of
     NfNeuMu'    nfBody        -> fmtPrefixM precApp (pure "μ′ ")  (withPrec (precApp + 1) (ppNfTM nfBody))
     
     NfNeuApp    (NfNeuApp op nf') nf'' | Just (opP, p', p'', sym) <- isBinOpNeuNf op
-                              -> fmtBinOpM opP sym (withPrec p'         (ppNfTM nf')) (withPrec  p''          (ppNfTM nf''))
+                              -> fmtBinOpM opP sym (withPrec p'      (ppNfTM    nf')) (withPrec  p''          (ppNfTM nf''))
         
     NfNeuApp    nf' nf''      -> fmtAppM precApp   (withPrec precApp (ppNeuNfTM nf')) (withPrec (precApp + 1) (ppNfTM nf''))
 

@@ -19,11 +19,18 @@ import qualified Data.Map         as Map
 import           Text.Parsec        (parse                                                   )
                                                                                              
 import           Syntax                                                                      
-import           Eval               (evalT                                                   )
+import           Eval               (evalT        , rbT                                      )
 import           Equiv              (equivT                                                  )
-import           Run                (buildGlobals , runProgram   , runExcs                   )
-import           Typechecker        (checkProgram , Ctx(..)                                  )
+import           Run                (buildGlobals , runProgram   , runExc      , erase       )
+import           Typechecker        (checkProgram , Ctx(..)      , runTC       , inferK      )
 import           Parser             (parseModule                                             )
+import           Pretty             (ppNfT        , ppKind                                   )
+
+--------------------------------------------------------------------------------
+
+data Cmd
+  = CmdExc   Erased
+  | CmdEvalT Type
 
 --------------------------------------------------------------------------------
 
@@ -95,32 +102,45 @@ processAndRun file args = do
   hPutStrLn stderr ""
   
   let flatProgram     = Program $ concatMap (\(Module _ _ ds) -> ds) (reverse $ stOrder finalState)
-      entryDecls      =  case stOrder finalState of { Module _ _ ds : _ -> ds      ; []        -> []           }
-      getExc          = \case                       { DLoc   _ d        -> getExc d; DeclExc e -> [e]; _ -> [] }
-      excs            = concatMap getExc entryDecls
+      entryDecls      =  case stOrder finalState of { Module _ _ ds : _ -> ds       ; []        -> []                                                         }
+      getCmds         = \case                       { DLoc   _   d      -> getCmds d; DeclExc e -> [CmdExc (erase e)]; DeclEvalT ty -> [CmdEvalT ty]; _ -> [] }
+      cmds            = concatMap getCmds entryDecls
       (tcRes, report) = checkProgram flatProgram
   
   mapM_ (hPutStrLn stderr) report
   
-  either (abort  . ("Type error:\n" ++)) (exec entryNm flatProgram report excs) tcRes
+  either (abort  . ("Type error:\n" ++)) (exec entryNm flatProgram report cmds) tcRes
   where mainNm   = GName "main"
         ioUnitT  = TApp  (TConst TIO) (TConst (TRecordC []))
         finish   = (>> exitSuccess) . hPutStrLn stderr
         
-        exec eNm prg rep excDecls ctx
+        exec eNm prg rep cmds ctx
           | hasHoles  = finish hlsErr
           | otherwise = do
               rtGlbs <- buildGlobals prg
-              unless (null excDecls) $ runExcs rtGlbs excDecls >> putStrLn ""
+              unless (null cmds) $ runCmds rtGlbs Nothing cmds >> putStrLn ""
               if eNm == MName "Main"
                 then maybe (abort mnErr) (bool (abort mtErr) (runScript rtGlbs) . isValidMain) mainNIn
                 else finish "Typechecking succeeded."
-          where mainNIn        = Map.lookup mainNm (ctxGlbET ctx)
-                hasHoles       = any ("Hole:" `isInfixOf`) rep
-                isValidMain vt = equivT glbT 0 vt (evalT glbT [] ioUnitT)
-                glbT           = ctxGlbT ctx
+          where mainNIn             = Map.lookup mainNm (ctxGlbET ctx)
+                hasHoles            = any ("Hole:" `isInfixOf`) rep
+                isValidMain vt      = equivT glbT 0 vt (evalT glbT [] ioUnitT)
+                glbT                = ctxGlbT ctx
+                                    
+                runScript rtG       = withArgs args (runProgram rtG mainNm) >> exitSuccess
                 
-                runScript rtG  = withArgs args (runProgram rtG mainNm) >> exitSuccess
+                runCmds rtG prevCmd = \case
+                  []     -> return ()
+                  c : cs -> do
+                    let currCmd = case c of { CmdExc{} -> True; CmdEvalT{} -> False }
+                    when (prevCmd /= Nothing && prevCmd /= Just currCmd) $ putStrLn ""
+                    case c of
+                      CmdExc   e  -> runExc rtG e
+                      CmdEvalT ty -> do
+                        let k = either error id $ fst $ runTC ctx (inferK ty)
+                        putStrLn $ "⊢ " ++ ppNfT [] 0 (rbT glbT 0 0 (evalT glbT [] ty))
+                        putStrLn $ "∷ " ++ ppKind 0 k
+                    runCmds rtG (Just currCmd) cs
                 
                 hlsErr         = "Typechecking succeeded (with holes)."
                 mtErr          = "Typechecking succeeded, but main does not have type IO {}. Execution aborted."

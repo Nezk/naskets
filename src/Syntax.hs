@@ -47,8 +47,9 @@ data Type
   = TVar    Ix                     
   | TConst                           ConstT 
   | TGlobal GName                         
-  | TLam          LName (Maybe Kind) Type      -- λα ∷ κ. τ / λα. τ
+  | TLam          LName (Maybe Kind) Type      -- λ α ∷ κ. τ / λα. τ
   | TApp                             Type Type -- τ₁ τ₂
+  | TLet          LName (Maybe Kind) Type Type -- let α ∷ κ = τ₁ in τ₂
   | TMu                              Type      -- μ  τ
   | TMu'                             Type      -- μ′ τ
   | TLoc          Pos                Type
@@ -58,7 +59,7 @@ data ConstT
   | TArr                        -- _→_ : * → * → *
   | TIO                         -- IO  : * → *
 
-  | TForall Kind | TExists Kind -- t[κ]   : (κ → *) → *
+  | TForall Kind | TExists Kind -- t[κ] : (κ → *) → *
 
   | TRecordC  Labels            -- { l1 : _, …, l_n : _ }
   | TVariantC Labels            -- ⟨ l1 : _, …, l_n : _ ⟩
@@ -254,10 +255,11 @@ data View
 --------------------------------------------------------------------------------
 
 data Decl
-  = DeclType GName Kind Type
-  | DeclFun  GName Type Exp 
-  | DeclExc  Exp
-  | DLoc     Pos   Decl
+  = DeclType  GName Kind Type
+  | DeclFun   GName Type Exp 
+  | DeclExc   Exp
+  | DeclEvalT Type
+  | DLoc      Pos   Decl
 
 data Module
   = Module MName [MName] [Decl]

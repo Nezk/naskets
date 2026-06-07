@@ -3,18 +3,19 @@
 module Parser where
 
 import           Text.Parsec
-import           Text.Parsec.String    (Parser                             )   
-import           Text.Parsec.Language  (emptyDef                           )   
+import           Text.Parsec.String    (Parser                              )   
+import           Text.Parsec.Language  (emptyDef                            )   
 import           Text.Parsec.Expr                                           
 import qualified Text.Parsec.Token  as  Token
 
-import           Data.List             (intercalate, elemIndex, sortBy, nub)
-import           Data.Functor          ((<&>                              ))
-import           Data.Functor.Identity (Identity                           )
-import qualified Data.Map            as Map
-import qualified Data.Text           as T
-
-import           Control.Monad         (when                               )
+import           Data.List             (intercalate, elemIndex, sortBy, nub )
+import           Data.Functor          ((<&>                               ))
+import           Data.Functor.Identity (Identity                            )
+import qualified Data.Map            as Map                                
+import qualified Data.Text           as T                                  
+                                                                           
+import           Control.Monad         (when                                )
+import           Data.Char             (generalCategory, GeneralCategory(..))
 
 import           Syntax
 
@@ -22,14 +23,14 @@ import           Syntax
 
 nasketsDef :: Token.LanguageDef ()
 nasketsDef = emptyDef
-  { Token.commentStart    = "{-"                                               ,
-    Token.commentEnd      = "-}"                                               ,
-    Token.commentLine     = "--"                                               ,
-    Token.nestedComments  = True                                               ,
-    Token.identStart      = letter   <|> char '_'                              ,
-    Token.identLetter     = alphaNum <|> char '_' <|> char '\'' <|> oneOf "′″‴",
-    Token.opStart         = oneOf ":!#$%&*+./<=>?@\\^|-~"                      ,
-    Token.opLetter        = oneOf ":>=\\"                                      ,
+  { Token.commentStart    = "{-"                                                                ,
+    Token.commentEnd      = "-}"                                                                ,
+    Token.commentLine     = "--"                                                                ,
+    Token.nestedComments  = True                                                                ,
+    Token.identStart      = letter   <|> char '_'                               <|> satisfy math,
+    Token.identLetter     = alphaNum <|> char '_' <|> char '\'' <|> oneOf "′″‴" <|> satisfy math,
+    Token.opStart         = oneOf ":!#$%&*+./<=>?@\\^|-~"                                       ,
+    Token.opLetter        = oneOf ":>=\\"                                                       ,
     Token.reservedNames   =
       ["module"   , "where"     , "include" ,
        "Int"      , "Double"    , "String"  ,
@@ -52,7 +53,8 @@ nasketsDef = emptyDef
        "."  ,
        "?"  ,
        "|"  , "↦"  ,
-       ">>=", ">>" ,
+       ">>=", ">>" , "»" ,
+       "|-" , "⊢"  ,
        "==" , "=^" , "=.",
        "["  , "]"  ,
        "<"  , ">"  , "⟨" , "⟩",
@@ -61,6 +63,10 @@ nasketsDef = emptyDef
        "^"  ,
        "μ"  , "μ′" ],
     Token.caseSensitive   = True }
+  where math c            =
+          c > '\x7F'                                                     &&
+          (case generalCategory c of { MathSymbol -> True; _ -> False }) &&
+          notElem c "→∷⊢∀∃λΛ»↦⟨⟩"
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser nasketsDef
@@ -141,6 +147,17 @@ parseQuantifierSugar tNms = do
                         k     <- parseKind
                         return [(LName lnm, k) | lnm <- nms]
 
+parseTLet :: Names -> Parser Type
+parseTLet tNms = do
+  reserved   "let"
+  lnm <- identifier
+  mK  <- optionMaybe ((reservedOp "::" <|> reservedOp "∷") >> parseKind)
+  reservedOp "="
+  ty  <- parseType tNms
+  reserved   "in"
+  ty' <- parseType (LName lnm : tNms)
+  return $ TLet (LName lnm) mK ty ty'
+
 parseRow :: String -> (Labels -> ConstT) -> (Parser [(Label, Type)] -> Parser [(Label, Type)]) -> Names -> Parser Type
 parseRow errMsg con wrap tNms = do
   pos    <- getPosition
@@ -161,6 +178,7 @@ parseField tNms = (,) . Label <$> identifier <* (reservedOp ":" <|> reservedOp "
 tyExp :: Names -> Parser Type
 tyExp tNms = withLoc TLoc $
       try (parseQuantifierSugar tNms)
+  <|> try (parseTLet            tNms)
   <|> try (parens (reservedOp "->") >> return (TConst TArr))
   <|> try (parens (reservedOp "→" ) >> return (TConst TArr))
   <|> parseRecordType        tNms
@@ -398,10 +416,9 @@ parseUnpack tNms eNms = do
 --------------------------------------------------------------------------------
 
 parseDecl :: Parser Decl
-parseDecl = withLoc DLoc $
-            try (reservedOp ">>" >> parseExp [] [] <&> DeclExc)
-        <|> do gnm <- identifier
-               parseTypeDeclBody gnm <|> parseFunDeclBody gnm
+parseDecl = withLoc DLoc $ try ((reservedOp ">>" <|> reservedOp "»") >> parseExp [] [] <&> DeclExc  )
+                       <|> try ((reservedOp "|-" <|> reservedOp "⊢") >> parseType   [] <&> DeclEvalT)
+                       <|> (identifier    >>= \gnm -> parseTypeDeclBody gnm <|> parseFunDeclBody gnm)
 
 parseTypeDeclBody :: String -> Parser Decl
 parseTypeDeclBody gnm = do

@@ -23,14 +23,16 @@ myCounter' = pack [Double] { state = 0.0, step = \x. x +. 0.1, get = \n. trunc (
 
 -- Something Jupyter Notebook-ish:
 
->> "Fields are canonically sorted"
->> myCounter  
->> myCounter'
+» "Fields are canonically sorted"
+» myCounter  
+» myCounter'
 
->> putStr (showInt (2 + 2 * 2)) >>= \(_ : {}). putStr " is six"
->> (\x : Int. x + 2 + 2)
->> let x = (fix (\x : Int. x)) in (+) x
->> (\x y z : Int. x + y + z) 10 20
+» putStr (showInt (2 + 2 * 2)) >>= \(_ : {}). putStr " is six"
+» (\x : Int. x + 2 + 2)
+» let x = (fix (\x : Int. x)) in (+) x
+» (\x y z : Int. x + y + z) 10 20
+
+⊢ let Id = \x ∷ *. x in Id Int
 
 main : IO {} -- Empty record (= product) is unit
 main =

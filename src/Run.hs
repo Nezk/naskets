@@ -7,7 +7,7 @@
 module Run where
 
 import           Control.Exception  ( Exception , throwIO  , try        )
-import           Control.Monad      ((>=>)      , forM_                 )
+import           Control.Monad      ((>=>)                              )
 import           Data.Bool          ( bool                              )
                                                                     
 import           System.Environment ( getArgs                           )
@@ -434,6 +434,6 @@ runProgram glbT mainNm =
         (force glbT >=> runIO glbT) -- forcing the found main function
         (Map.lookup mainNm glbT)
 
-runExcs :: GErased -> ExcDecls -> IO ()
-runExcs glbT excDecls =                         
-  forM_ excDecls $ \e -> mkThunk (erase e) [] >>= force glbT >>= takeView (force glbT) 30 >>= putStrLn . (">> " ++) . ppView
+runExc :: GErased -> Erased -> IO ()
+runExc glbT e =                         
+  mkThunk e [] >>= force glbT >>= takeView (force glbT) 30 >>= putStrLn . ("» " ++) . ppView
